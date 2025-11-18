@@ -1,6 +1,0 @@
-{
-  "minmax": [
-    { "sku": "P001", "producto": "Cafetera", "min": 5, "max": 30 },
-    { "sku": "P002", "producto": "Taza", "min": 20, "max": 300 }
-  ]
-}

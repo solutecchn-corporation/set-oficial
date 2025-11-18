@@ -1,6 +1,0 @@
-{
-  "cuentas": [
-    { "codigo": "1000", "nombre": "Activo corriente" },
-    { "codigo": "2000", "nombre": "Pasivo corriente" }
-  ]
-}

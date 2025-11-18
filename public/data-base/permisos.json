@@ -1,7 +1,0 @@
-{
-  "permisos": [
-    { "id": "ver_usuarios", "label": "Ver usuarios" },
-    { "id": "editar_usuarios", "label": "Editar usuarios" },
-    { "id": "ver_reportes", "label": "Ver reportes" }
-  ]
-}

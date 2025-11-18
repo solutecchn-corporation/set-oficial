@@ -1,6 +1,0 @@
-{
-  "diario": [
-    { "fecha": "2025-11-01", "descripcion": "Venta #1001", "debe": 1000.00, "haber": 1000.00 },
-    { "fecha": "2025-11-03", "descripcion": "Compra insumos", "debe": 500.00, "haber": 500.00 }
-  ]
-}

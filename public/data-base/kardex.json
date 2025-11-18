@@ -1,5 +1,0 @@
-{
-  "kardex": [
-    { "producto": "Cafetera", "movimientos": [{ "tipo": "entrada", "cantidad": 5, "fecha": "2025-10-01" }, { "tipo": "salida", "cantidad": 2, "fecha": "2025-10-15" }] }
-  ]
-}

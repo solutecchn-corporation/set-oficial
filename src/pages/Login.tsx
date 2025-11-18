@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import supabase from '../lib/supabaseClient'
 
 type User = {
   id: number
@@ -21,12 +22,33 @@ export default function Login({ onLogin }: LoginProps) {
     e.preventDefault()
     setMessage(null)
     try {
-      const res = await fetch('/data-base/data.json')
-      if (!res.ok) throw new Error('No se pudo cargar la base de datos local')
-      const data = await res.json()
-      const users: User[] = data.users || []
-      const found = users.find(u => u.username === username && u.password === password)
-      if (found) {
+      // Autenticación únicamente contra la tabla `users` en Supabase
+      const { data: sbData, error: sbError } = await supabase
+        .from('users')
+        .select('id, username, password, role')
+        .eq('username', username)
+        .limit(1)
+        .single()
+
+      if (sbError) {
+        // Problema al consultar Supabase
+        setMessage('Error al consultar el servicio de autenticación')
+        console.error('Supabase error:', sbError)
+        // Si es un error de columna inexistente, dar una sugerencia
+        if ((sbError as any)?.code === '42703') {
+          console.warn('La consulta solicita una columna inexistente en la tabla `users`. Verifica el DDL y ajusta `.select(...)` según las columnas reales.')
+        }
+        return
+      }
+
+      if (!sbData) {
+        setMessage('Credenciales inválidas')
+        return
+      }
+
+      const found = sbData as User
+      // Nota importante: en producción NO se deben guardar ni comparar contraseñas en texto plano.
+      if (found.password === password) {
         localStorage.setItem('user', JSON.stringify({ id: found.id, username: found.username, role: found.role }))
         setMessage('Inicio de sesión correcto')
         if (typeof onLogin === 'function') onLogin()

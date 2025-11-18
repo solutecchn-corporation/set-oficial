@@ -1,91 +1,90 @@
 import React, { useEffect, useState } from 'react'
 
-const menuSections = [
+const menuItems: any[] = [
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'datos', label: 'Datos de mi empresa' },
   {
-    id: 'administracion',
-    label: 'Administración',
+    id: 'usuarios',
+    label: 'Usuarios / Cajeros',
     children: [
-      { id: 'datos', label: 'Datos de la empresa' },
-      { id: 'usuarios', label: 'Usuarios y Roles' },
-      { id: 'permisos', label: 'Permisos avanzados' },
-      { id: 'auditoria', label: 'Auditoría (bitácora)' },
-      { id: 'respaldos', label: 'Respaldos / restauración' },
-    ],
+      { id: 'usuarios_internal', label: 'Usuarios internos (users)' },
+      { id: 'usuarios_web', label: 'Usuarios web (usuarios_web)' }
+    ]
   },
   {
-    id: 'ventas',
-    label: 'Ventas / Facturación',
+    id: 'factura',
+    label: 'Factura y CAI',
     children: [
-      { id: 'factura', label: 'Facturas' },
-      { id: 'cai', label: 'CAI / Folios' },
-      { id: 'cotizaciones', label: 'Cotizaciones' },
-      { id: 'notas', label: 'Notas de crédito / devoluciones' },
-      { id: 'clientes', label: 'Clientes' },
-      { id: 'cxc', label: 'Cuentas por cobrar' },
-      { id: 'rep_ventas', label: 'Reportes de ventas' },
-    ],
-  },
-  {
-    id: 'compras',
-    label: 'Compras / Proveedores',
-    children: [
-      { id: 'ordenes', label: 'Órdenes de compra' },
-      { id: 'proveedores', label: 'Proveedores' },
-      { id: 'cxp', label: 'Cuentas por pagar' },
-      { id: 'rep_compras', label: 'Reportes de compras' },
-    ],
+      { id: 'cai', label: 'CAI (cai)' },
+      { id: 'facturas', label: 'Facturas (ventas)' },
+      { id: 'historial_facturas', label: 'Historial de facturas' }
+    ]
   },
   {
     id: 'inventario',
     label: 'Inventario',
     children: [
-      { id: 'productos', label: 'Productos' },
-      { id: 'categorias', label: 'Categorías' },
-      { id: 'kardex', label: 'Kardex (PEPS / UEPS / PROM)' },
-      { id: 'minmax', label: 'Mínimos y máximos' },
-      { id: 'lotes', label: 'Lotes y vencimientos' },
-      { id: 'bodegas', label: 'Bodegas / sucursales' },
-      { id: 'rep_inventario', label: 'Reportes de inventario' },
-    ],
+      { id: 'inventario_productos', label: 'Productos (Inventario)' },
+      { id: 'inventario_salidas', label: 'Entradas/Salidas (salidas_inventario)' },
+      { id: 'inventario_categorias', label: 'Categorías / Marcas (opcional)' }
+    ]
   },
   {
-    id: 'caja',
-    label: 'Caja / Finanzas',
+    id: 'compras',
+    label: 'Compras y Proveedores',
     children: [
-      { id: 'apertura', label: 'Apertura de caja' },
-      { id: 'cierres', label: 'Cierre de caja' },
-      { id: 'arqueo', label: 'Arqueo (faltantes y sobrantes)' },
-      { id: 'metodos_pago', label: 'Métodos de pago' },
-      { id: 'depositos', label: 'Depósitos a banco' },
-      { id: 'flujo', label: 'Flujo de caja (proyectado)' },
-    ],
+      { id: 'compras_main', label: 'Compras (compras)' },
+      { id: 'compras_detalle', label: 'Detalle de compras (compras_detalle)' },
+      { id: 'proveedores', label: 'Proveedores (proveedores)' }
+    ]
   },
   {
-    id: 'contabilidad',
-    label: 'Contabilidad',
+    id: 'cierres',
+    label: 'Cierres de caja',
     children: [
-      { id: 'plan', label: 'Cuentas contables' },
-      { id: 'diario', label: 'Libro diario' },
-      { id: 'mayor', label: 'Libro mayor' },
-      { id: 'estado', label: 'Estado de resultados' },
-      { id: 'balance', label: 'Balance general' },
-      { id: 'activos', label: 'Activos fijos (opcional)' },
-      { id: 'integracion', label: 'Integración contable automática' },
-    ],
+      { id: 'caja_sesiones', label: 'Sesiones de caja (caja_sesiones)' },
+      { id: 'caja_movimientos', label: 'Movimientos de caja (caja_movimientos)' }
+    ]
+  },
+  {
+    id: 'pedidos',
+    label: 'Pedidos web / Ecommerce',
+    children: [
+      { id: 'pedidos_web', label: 'Pedidos web (pedidos_web)' },
+      { id: 'pedidos_detalle', label: 'Detalle de pedidos (pedidos_web_detalle)' },
+      { id: 'pagos_web', label: 'Pagos web (pagos_web)' }
+    ]
+  },
+  {
+    id: 'cotizaciones',
+    label: 'Cotizaciones',
+    children: [
+      { id: 'cotizaciones', label: 'Cotizaciones (cotizaciones)' },
+      { id: 'cotizaciones_detalle', label: 'Detalle de cotizaciones (cotizaciones_detalle)' }
+    ]
   },
   {
     id: 'reportes',
-    label: 'Reportes e Inteligencia',
+    label: 'Reportes',
     children: [
-      { id: 'informe_general', label: 'Informe general' },
-      { id: 'rep_periodo', label: 'Ventas por periodo / usuario / sucursal' },
-      { id: 'prod_top', label: 'Productos más vendidos' },
-      { id: 'margen', label: 'Margen de utilidad' },
-      { id: 'egresos_ingresos', label: 'Egresos e ingresos detallados' },
-      { id: 'comparativos', label: 'Comparativos mensuales' },
-      { id: 'dashboard_exec', label: 'Dashboard ejecutivo' },
-    ],
+      { id: 'rep_ventas', label: 'Ventas (ventas + ventas_detalle)' },
+      { id: 'rep_devoluciones', label: 'Devoluciones (devoluciones_ventas)' },
+      { id: 'rep_ingresos_egresos', label: 'Ingresos / Egresos (caja_movimientos)' },
+      { id: 'rep_compras', label: 'Compras' },
+      { id: 'rep_inventario', label: 'Inventario' },
+      { id: 'rep_export', label: 'Exportar reportes generales (PDF / Excel)' }
+    ]
   },
+  {
+    id: 'contaduria',
+    label: 'Contaduría / Libro Diario',
+    children: [
+      { id: 'cuentas_contables', label: 'Cuentas contables (cuentas_contables)' },
+      { id: 'libro_diario', label: 'Libro diario (libro_diario)' },
+      { id: 'auditoria', label: 'Auditoría (auditoria)' }
+    ]
+  },
+  { id: 'salir', label: 'Salir' }
 ]
 
 function Placeholder({ title, children }: { title: string; children?: React.ReactNode }) {
@@ -99,7 +98,13 @@ function Placeholder({ title, children }: { title: string; children?: React.Reac
 
 export default function PanelAdmin({ onLogout }: { onLogout: () => void }) {
   const [active, setActive] = useState('dashboard')
+  const [subActive, setSubActive] = useState<string | null>(null)
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({})
   const [dashboardData, setDashboardData] = useState<any | null>(null)
+  const [supUsers, setSupUsers] = useState<any[]>([])
+  const [supUsersLoading, setSupUsersLoading] = useState(false)
+  const [supInventory, setSupInventory] = useState<any[]>([])
+  const [supInventoryLoading, setSupInventoryLoading] = useState(false)
   const [usersCajeros, setUsersCajeros] = useState<any[]>([])
   const [company, setCompany] = useState<any | null>(null)
   const [editing, setEditing] = useState(false)
@@ -133,24 +138,43 @@ export default function PanelAdmin({ onLogout }: { onLogout: () => void }) {
   const USERS_STORAGE_KEY = 'usersData'
 
   useEffect(() => {
-    // prefer localStorage (editable), otherwise load from public JSON
-    const stored = localStorage.getItem(USERS_STORAGE_KEY)
-    if (stored) {
+    // prefer Supabase for users; fallback to localStorage/public JSON if needed
+    let mounted = true
+    ;(async () => {
       try {
-        const parsed = JSON.parse(stored)
-        setUsersCajeros(Array.isArray(parsed) ? parsed.filter((u: any) => u.role === 'cajero') : [])
-        return
-      } catch {}
-    }
-
-    fetch('/data-base/data.json')
-      .then(r => r.json())
-      .then(d => {
-        const users = Array.isArray(d.users) ? d.users : []
-        const cajeros = users.filter((u: any) => u.role === 'cajero')
+        const sup = (await import('../lib/supabaseClient')).default
+        const { data, error } = await sup.from('users').select('id, username, role').limit(200)
+        if (error) throw error
+        if (!mounted) return
+        const all = Array.isArray(data) ? data : []
+        const cajeros = all.filter((u: any) => u.role === 'cajero')
         setUsersCajeros(cajeros)
-      })
-      .catch(() => setUsersCajeros([]))
+        // store fetched users for offline edits
+        try { localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(all)) } catch {}
+        return
+      } catch (err) {
+        // fallback: try storage then public JSON
+        const stored = localStorage.getItem(USERS_STORAGE_KEY)
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored)
+            if (mounted) setUsersCajeros(Array.isArray(parsed) ? parsed.filter((u: any) => u.role === 'cajero') : [])
+            return
+          } catch {}
+        }
+        try {
+          const res = await fetch('/data-base/data.json')
+          if (!res.ok) throw new Error('no json')
+          const d = await res.json()
+          const users = Array.isArray(d.users) ? d.users : []
+          if (mounted) setUsersCajeros(users.filter((u: any) => u.role === 'cajero'))
+          return
+        } catch {
+          if (mounted) setUsersCajeros([])
+        }
+      }
+    })()
+    return () => { mounted = false }
   }, [])
 
   function saveUsersToStorage(list: any[]) {
@@ -426,7 +450,6 @@ export default function PanelAdmin({ onLogout }: { onLogout: () => void }) {
   // Contaduría: cargar contaduria.json (plan de cuentas, diario, mayor, estado, cxc, cxp, balances)
   const [contaduria, setContaduria] = useState<any | null>(null)
   const [contActive, setContActive] = useState<string>('plan')
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({})
   useEffect(() => {
     const stored = localStorage.getItem('contaduriaData')
     if (stored) {
@@ -471,168 +494,44 @@ export default function PanelAdmin({ onLogout }: { onLogout: () => void }) {
       .catch(() => setEgresos([]))
   }, [])
 
-  // Mapa rápido id -> label para renderizado genérico
-  const idLabelMap: Record<string, string> = menuSections.reduce((acc: Record<string, string>, sec: any) => {
-    (sec.children || []).forEach((c: any) => { acc[c.id] = c.label })
-    return acc
-  }, {})
+  // Fetch supabase-backed data for specific subviews when requested
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      if (subActive === 'usuarios_internal') {
+        setSupUsersLoading(true)
+        try {
+          const sup = (await import('../lib/supabaseClient')).default
+          const { data, error } = await sup.from('users').select('id, username, role')
+          if (error) throw error
+          if (!mounted) return
+          setSupUsers(Array.isArray(data) ? data : [])
+        } catch (err) {
+          console.error('Error loading users from Supabase', err)
+          if (mounted) setSupUsers([])
+        } finally {
+          if (mounted) setSupUsersLoading(false)
+        }
+      }
 
-  // Activos que ya tienen una vista personalizada en el main
-  const handledActives = new Set([
-    'dashboard', 'datos', 'usuarios', 'factura', 'inventario', 'cierres',
-    'rep_ventas', 'rep_devoluciones', 'rep_ingresos', 'rep_egresos', 'impresion', 'contaduria'
-  ])
-
-  function GenericDataView({ id, title }: { id: string; title?: string }) {
-    const [data, setData] = useState<any>(null)
-    const [loading, setLoading] = useState<boolean>(true)
-
-    useEffect(() => {
-      let mounted = true
-      setLoading(true)
-      fetch(`/data-base/${id}.json`).then(r => {
-        if (!r.ok) throw new Error('no-data')
-        return r.json()
-      }).then(d => { if (mounted) setData(d) }).catch(() => { if (mounted) setData(null) }).finally(() => { if (mounted) setLoading(false) })
-      return () => { mounted = false }
-    }, [id])
-
-    if (loading) return <Placeholder title={title || id}><div>Cargando...</div></Placeholder>
-    if (!data) return <Placeholder title={title || id}><div>No hay datos para esta sección.</div></Placeholder>
-
-    const arr = Array.isArray(data) ? data : (Array.isArray(data.items) ? data.items : (Array.isArray(data.list) ? data.list : null))
-
-    if (arr && arr.length > 0) {
-      const keys = Object.keys(arr[0])
-      return (
-        <Placeholder title={title || id}>
-          <div style={{ overflowX: 'auto' }}>
-            <table className="admin-table">
-              <thead>
-                <tr>{keys.map(k => <th key={k}>{k}</th>)}</tr>
-              </thead>
-              <tbody>
-                {arr.map((row: any, idx: number) => (
-                  <tr key={idx}>{keys.map(k => <td key={k}>{typeof row[k] === 'object' ? JSON.stringify(row[k]) : String(row[k] ?? '')}</td>)}</tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Placeholder>
-      )
-    }
-
-    return <Placeholder title={title || id}><pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(data, null, 2)}</pre></Placeholder>
-  }
-
-  function DataTableView({ file, title, columns }: { file: string; title?: string; columns?: string[] }) {
-    const [data, setData] = useState<any>(null)
-    const [loading, setLoading] = useState<boolean>(true)
-
-    useEffect(() => {
-      let mounted = true
-      setLoading(true)
-      fetch(`/data-base/${file}.json`).then(r => {
-        if (!r.ok) throw new Error('no-data')
-        return r.json()
-      }).then(d => { if (mounted) setData(d) }).catch(() => { if (mounted) setData(null) }).finally(() => { if (mounted) setLoading(false) })
-      return () => { mounted = false }
-    }, [file])
-
-    if (loading) return <Placeholder title={title || file}><div>Cargando...</div></Placeholder>
-    if (!data) return <Placeholder title={title || file}><div>No hay datos disponibles.</div></Placeholder>
-
-    // obtener array de datos desde keys comunes
-    const arr = Array.isArray(data) ? data : (Array.isArray(data.items) ? data.items : (Array.isArray(data.list) ? data.list : (Array.isArray(data.users) ? data.users : (Array.isArray(data.invoices) ? data.invoices : (Array.isArray(data.cotizaciones) ? data.cotizaciones : (Array.isArray(data.clientes) ? data.clientes : (Array.isArray(data.productos) ? data.productos : null)))))))
-
-    if (!arr || arr.length === 0) return <Placeholder title={title || file}><div>No hay registros.</div></Placeholder>
-
-    const keys = columns && columns.length ? columns : Object.keys(arr[0])
-
-    return (
-      <Placeholder title={title || file}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={{ color: '#475569' }}>Registros: <strong>{arr.length}</strong></div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => { navigator.clipboard?.writeText(JSON.stringify(arr, null, 2)) }} className="btn-opaque">Copiar JSON</button>
-            <button onClick={() => { const blob = new Blob([JSON.stringify(arr, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${file}.json`; a.click(); URL.revokeObjectURL(url); }} className="btn-primary">Exportar</button>
-          </div>
-        </div>
-
-        <div style={{ overflowX: 'auto', background: '#fff', padding: 8, borderRadius: 8 }}>
-          <table className="admin-table" style={{ width: '100%' }}>
-            <thead>
-              <tr>
-                {keys.map(k => <th key={k}>{k}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {arr.map((row: any, idx: number) => (
-                <tr key={idx}>
-                  {keys.map(k => (
-                    <td key={k} style={{ verticalAlign: 'top' }}>{renderCell(row[k])}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Placeholder>
-    )
-  }
-
-  function renderCell(value: any) {
-    if (value == null) return '-'
-    if (typeof value === 'number') return `$ ${value.toFixed ? value.toFixed(2) : value}`
-    if (typeof value === 'string' && /\d{4}-\d{2}-\d{2}T?/.test(value)) return value
-    if (typeof value === 'object') return <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{JSON.stringify(value)}</pre>
-    return String(value)
-  }
-
-  const viewConfigs: Record<string, { file: string; title?: string; columns?: string[] }> = {
-    // Administración
-    permisos: { file: 'permisos', title: 'Permisos avanzados' },
-    auditoria: { file: 'auditoria', title: 'Auditoría (bitácora)', columns: ['id', 'user', 'action', 'date'] },
-    respaldos: { file: 'respaldos', title: 'Respaldos / Restauración', columns: ['id', 'date', 'sizeMB', 'status'] },
-
-    // Ventas
-    cai: { file: 'cai', title: 'CAI / Folios', columns: ['id', 'cajero', 'cai', 'rangoDe', 'rangoHasta', 'fechaVencimiento'] },
-    cotizaciones: { file: 'cotizaciones', title: 'Cotizaciones', columns: ['id', 'cliente', 'fecha', 'total'] },
-    notas: { file: 'notas', title: 'Notas de crédito / devoluciones' },
-    clientes: { file: 'clientes', title: 'Clientes', columns: ['id', 'nombre', 'telefono', 'email'] },
-    cxc: { file: 'cxc', title: 'Cuentas por cobrar', columns: ['id', 'cliente', 'monto', 'vence'] },
-
-    // Compras
-    ordenes: { file: 'ordenes', title: 'Órdenes de compra', columns: ['id', 'proveedor', 'fecha', 'total'] },
-    proveedores: { file: 'proveedores', title: 'Proveedores', columns: ['id', 'nombre', 'contacto'] },
-    cxp: { file: 'cxp', title: 'Cuentas por pagar', columns: ['id', 'proveedor', 'monto', 'vence'] },
-    rep_compras: { file: 'rep_compras', title: 'Reportes de compras' },
-
-    // Inventario
-    productos: { file: 'productos', title: 'Productos', columns: ['id', 'sku', 'nombre', 'stock', 'precio'] },
-    categorias: { file: 'categorias', title: 'Categorías', columns: ['id', 'nombre'] },
-    kardex: { file: 'kardex', title: 'Kardex (movimientos)' },
-    minmax: { file: 'minmax', title: 'Mínimos y máximos' },
-    lotes: { file: 'lotes', title: 'Lotes y vencimientos' },
-    bodegas: { file: 'bodegas', title: 'Bodegas / Sucursales' },
-    rep_inventario: { file: 'rep_inventario', title: 'Reportes de inventario' },
-
-    // Caja
-    apertura: { file: 'apertura', title: 'Aperturas de caja' },
-    arqueo: { file: 'arqueo', title: 'Arqueo (faltantes y sobrantes)' },
-    metodos_pago: { file: 'metodos_pago', title: 'Métodos de pago' },
-    depositos: { file: 'depositos', title: 'Depósitos a banco' },
-    flujo: { file: 'flujo', title: 'Flujo de caja (proyectado)' },
-
-    // Reportes adicionales
-    informe_general: { file: 'informe_general', title: 'Informe general' },
-    rep_periodo: { file: 'rep_periodo', title: 'Ventas por periodo' },
-    prod_top: { file: 'prod_top', title: 'Productos más vendidos' },
-    margen: { file: 'margen', title: 'Margen de utilidad' },
-    egresos_ingresos: { file: 'egresos_ingresos', title: 'Egresos e ingresos detallados' },
-    comparativos: { file: 'comparativos', title: 'Comparativos mensuales' },
-    dashboard_exec: { file: 'dashboard_exec', title: 'Dashboard ejecutivo' }
-  }
+      if (subActive === 'inventario_productos') {
+        setSupInventoryLoading(true)
+        try {
+          const sup = (await import('../lib/supabaseClient')).default
+          const { data, error } = await sup.from('Inventario').select('*').limit(500)
+          if (error) throw error
+          if (!mounted) return
+          setSupInventory(Array.isArray(data) ? data : [])
+        } catch (err) {
+          console.error('Error loading inventory from Supabase', err)
+          if (mounted) setSupInventory([])
+        } finally {
+          if (mounted) setSupInventoryLoading(false)
+        }
+      }
+    })()
+    return () => { mounted = false }
+  }, [subActive])
 
 
   return (
@@ -644,25 +543,33 @@ export default function PanelAdmin({ onLogout }: { onLogout: () => void }) {
         </div>
 
         <nav>
-          {menuSections.map(section => (
-            <div key={section.id} style={{ marginBottom: 6 }}>
-              {section.children && section.children.length > 0 ? (
-                <div>
-                  <div onClick={() => setExpandedSections(s => ({ ...s, [section.id]: !s[section.id] }))} style={{ padding: '10px 8px', borderRadius: 6, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: Object.keys(section).length && expandedSections[section.id] ? 'rgba(255,255,255,0.04)' : 'transparent' }}>
-                    <span>{section.label}</span>
-                    <span style={{ opacity: 0.7 }}>{expandedSections[section.id] ? '▾' : '▸'}</span>
-                  </div>
+          {menuItems.map(mi => (
+            <div key={mi.id} style={{ marginBottom: 6 }}>
+              {/* Parent item */}
+              <div onClick={() => {
+                if (mi.id === 'salir') return onLogout()
+                if (Array.isArray(mi.children) && mi.children.length > 0) {
+                  setExpandedMenus(s => ({ ...s, [mi.id]: !s[mi.id] }))
+                } else {
+                  setActive(mi.id)
+                  setSubActive(null)
+                }
+              }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 8px', borderRadius: 6, cursor: 'pointer', background: active === mi.id ? 'rgba(255,255,255,0.06)' : 'transparent' }}>
+                <span>{mi.label}</span>
+                {Array.isArray(mi.children) && mi.children.length > 0 ? (
+                  <span style={{ marginLeft: 8 }}>{expandedMenus[mi.id] ? '▾' : '▸'}</span>
+                ) : null}
+              </div>
 
-                  {expandedSections[section.id] && (
-                    <div style={{ marginLeft: 8, marginTop: 6 }}>
-                      {section.children.map((ch: any) => (
-                        <div key={ch.id} onClick={() => setActive(ch.id)} style={{ padding: '8px 10px', borderRadius: 6, cursor: 'pointer', marginBottom: 4, background: active === ch.id ? 'rgba(255,255,255,0.04)' : 'transparent' }}>{ch.label}</div>
-                      ))}
+              {/* Children (expandable) */}
+              {Array.isArray(mi.children) && mi.children.length > 0 && expandedMenus[mi.id] && (
+                <div style={{ marginLeft: 12, marginTop: 6 }}>
+                  {mi.children.map((ch:any) => (
+                    <div key={ch.id} onClick={() => { setActive(mi.id); setSubActive(ch.id) }} style={{ padding: '6px 8px', borderRadius: 6, cursor: 'pointer', marginBottom: 4, fontSize: 13, color: subActive === ch.id ? '#e2e8f0' : '#cbd5e1', background: subActive === ch.id ? 'rgba(255,255,255,0.04)' : 'transparent' }}>
+                      {ch.label}
                     </div>
-                  )}
+                  ))}
                 </div>
-              ) : (
-                <div onClick={() => setActive(section.id)} style={{ padding: '10px 8px', borderRadius: 6, cursor: 'pointer', marginBottom: 6, background: active === section.id ? 'rgba(255,255,255,0.06)' : 'transparent' }}>{section.label}</div>
               )}
             </div>
           ))}
@@ -761,6 +668,32 @@ export default function PanelAdmin({ onLogout }: { onLogout: () => void }) {
                     <p style={{ marginTop: 8 }}>Dirección: <strong>{company.direccion}</strong></p>
                   </div>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {active === 'usuarios' && subActive === 'usuarios_internal' && (
+          <div style={{ padding: 18 }}>
+            <h2 style={{ marginTop: 0 }}>Usuarios internos (users)</h2>
+            {supUsersLoading ? (
+              <div>Cargando usuarios desde Supabase...</div>
+            ) : (
+              <div style={{ background: '#fff', padding: 12, borderRadius: 8 }}>
+                {supUsers.length === 0 ? (
+                  <div>No se encontraron usuarios internos.</div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="admin-table">
+                      <thead><tr><th>ID</th><th>Usuario</th><th>Rol</th></tr></thead>
+                      <tbody>
+                        {supUsers.map(u => (
+                          <tr key={u.id}><td>{u.id}</td><td>{u.username}</td><td>{u.role}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -969,6 +902,34 @@ export default function PanelAdmin({ onLogout }: { onLogout: () => void }) {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {active === 'inventario' && subActive === 'inventario_productos' && (
+          <div style={{ padding: 18 }}>
+            <h2 style={{ marginTop: 0 }}>Productos (Inventario)</h2>
+            {supInventoryLoading ? (
+              <div>Cargando productos desde Supabase...</div>
+            ) : (
+              <div style={{ background: '#fff', padding: 12, borderRadius: 8 }}>
+                {supInventory.length === 0 ? (
+                  <div>No se encontraron productos en la tabla `Inventario`.</div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="admin-table">
+                      <thead>
+                        <tr><th>ID</th><th>Nombre</th><th>SKU</th><th>Descripción</th></tr>
+                      </thead>
+                      <tbody>
+                        {supInventory.map((p:any) => (
+                          <tr key={p.id}><td>{p.id}</td><td>{p.nombre || p.producto || p.nombre}</td><td>{p.sku}</td><td>{p.descripcion || '-'}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1512,16 +1473,6 @@ export default function PanelAdmin({ onLogout }: { onLogout: () => void }) {
               )}
             </div>
           </div>
-        )}
-
-        {/* Vistas específicas definidas en viewConfigs */}
-        {viewConfigs[active] && (
-          <DataTableView file={viewConfigs[active].file} title={viewConfigs[active].title || idLabelMap[active]} columns={viewConfigs[active].columns} />
-        )}
-
-        {/* Vistas genéricas para sub-items creados en public/data-base/*.json que no tienen vista específica */}
-        {idLabelMap[active] && !handledActives.has(active) && !viewConfigs[active] && (
-          <GenericDataView id={active} title={idLabelMap[active]} />
         )}
       </main>
     </div>

@@ -1,6 +1,0 @@
-{
-  "proveedores": [
-    { "id": 1, "nombre": "Proveedor A", "contacto": "proveedorA@proveedores.com" },
-    { "id": 2, "nombre": "Proveedor B", "contacto": "proveedorB@proveedores.com" }
-  ]
-}

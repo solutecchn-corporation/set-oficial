@@ -1,5 +1,0 @@
-{
-  "mayor": [
-    { "cuenta": "1000", "saldo_inicial": 5000.00, "debitos": 1200.00, "creditos": 800.00, "saldo_final": 5400.00 }
-  ]
-}

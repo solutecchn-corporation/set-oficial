@@ -1,6 +1,0 @@
-{
-  "movimientos": [
-    { "fecha": "2025-11-05", "tipo": "ingreso", "detalle": "Venta #1001", "monto": 1250.50 },
-    { "fecha": "2025-11-06", "tipo": "egreso", "detalle": "Compra insumos", "monto": 300.00 }
-  ]
-}

@@ -1,6 +1,0 @@
-{
-  "cotizaciones": [
-    { "id": 201, "cliente": "Cliente C", "fecha": "2025-11-08", "total": 450.00 },
-    { "id": 202, "cliente": "Cliente D", "fecha": "2025-11-15", "total": 780.00 }
-  ]
-}

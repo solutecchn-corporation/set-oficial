@@ -1,7 +1,0 @@
-{
-  "ventas": [
-    { "id": 1, "fecha": "2025-11-15T10:30:00Z", "cajero": "juan", "totalVentas": 1250.50, "numFacturas": 24, "notas": "Ventas regulares" },
-    { "id": 2, "fecha": "2025-11-16T14:45:00Z", "cajero": "maria", "totalVentas": 980.00, "numFacturas": 18, "notas": "Promoción aplicada" },
-    { "id": 3, "fecha": "2025-11-17T09:10:00Z", "cajero": "luis", "totalVentas": 430.75, "numFacturas": 7, "notas": "Ventas matutinas" }
-  ]
-}

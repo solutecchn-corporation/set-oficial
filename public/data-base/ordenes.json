@@ -1,6 +1,0 @@
-{
-  "ordenes": [
-    { "id": 401, "proveedor": "Proveedor A", "fecha": "2025-11-02", "total": 2000.00 },
-    { "id": 402, "proveedor": "Proveedor B", "fecha": "2025-11-11", "total": 1250.00 }
-  ]
-}

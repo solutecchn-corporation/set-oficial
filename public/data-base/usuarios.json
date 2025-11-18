@@ -1,7 +1,0 @@
-{
-  "users": [
-    { "id": 1, "username": "admin", "email": "admin@miempresa.com", "role": "admin" },
-    { "id": 2, "username": "cajero1", "email": "cajero1@miempresa.com", "role": "cajero" },
-    { "id": 3, "username": "conta", "email": "conta@miempresa.com", "role": "contador" }
-  ]
-}

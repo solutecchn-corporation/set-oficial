@@ -1,6 +1,0 @@
-{
-  "devoluciones": [
-    { "id": 1, "fecha": "2025-11-15T12:00:00Z", "cajero": "juan", "facturaId": 1023, "monto": 45.50, "motivo": "Producto defectuoso" },
-    { "id": 2, "fecha": "2025-11-16T16:20:00Z", "cajero": "maria", "facturaId": 1031, "monto": 120.00, "motivo": "Cambio por tamaño" }
-  ]
-}

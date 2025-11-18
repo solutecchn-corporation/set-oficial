@@ -1,6 +1,0 @@
-{
-  "bodegas": [
-    { "id": "B1", "nombre": "Bodega Central", "direccion": "Polígono 1" },
-    { "id": "S1", "nombre": "Sucursal Tegucigalpa", "direccion": "Av. Principal" }
-  ]
-}

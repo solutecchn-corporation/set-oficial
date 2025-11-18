@@ -1,6 +1,0 @@
-{
-  "ingresos": [
-    { "id": 1, "fecha": "2025-11-15T08:00:00Z", "origen": "Depósito banco", "monto": 5000.00, "detalle": "Depósito por ventas del día" },
-    { "id": 2, "fecha": "2025-11-16T11:30:00Z", "origen": "Pago proveedor", "monto": 750.00, "detalle": "Reembolso" }
-  ]
-}

@@ -1,6 +1,0 @@
-{
-  "logs": [
-    { "id": 1, "user": "admin", "action": "Login", "date": "2025-11-01T08:12:00Z" },
-    { "id": 2, "user": "cajero1", "action": "Registro de venta #1001", "date": "2025-11-10T14:22:00Z" }
-  ]
-}

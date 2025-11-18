@@ -1,6 +1,0 @@
-{
-  "productos": [
-    { "id": 1, "sku": "P001", "nombre": "Cafetera", "stock": 12, "precio": 75.00 },
-    { "id": 2, "sku": "P002", "nombre": "Taza", "stock": 150, "precio": 3.50 }
-  ]
-}

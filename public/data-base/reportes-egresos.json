@@ -1,6 +1,0 @@
-{
-  "egresos": [
-    { "id": 1, "fecha": "2025-11-14T09:00:00Z", "categoria": "Compras", "monto": 2300.00, "autorizadoPor": "admin", "detalle": "Compra de mercadería" },
-    { "id": 2, "fecha": "2025-11-16T13:15:00Z", "categoria": "Servicios", "monto": 450.25, "autorizadoPor": "gerente", "detalle": "Servicio técnico" }
-  ]
-}

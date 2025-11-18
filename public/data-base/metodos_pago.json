@@ -1,7 +1,0 @@
-{
-  "metodos": [
-    { "id": "efectivo", "label": "Efectivo" },
-    { "id": "tarjeta", "label": "Tarjeta de crédito/débito" },
-    { "id": "transferencia", "label": "Transferencia bancaria" }
-  ]
-}

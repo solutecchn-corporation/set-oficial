@@ -1,6 +1,0 @@
-{
-  "invoices": [
-    { "id": 1001, "cliente": "Cliente A", "fecha": "2025-11-05", "total": 1250.50, "items": [{"producto":"Prod 1","cantidad":2,"precio":500}] },
-    { "id": 1002, "cliente": "Cliente B", "fecha": "2025-11-12", "total": 300.00, "items": [{"producto":"Prod 3","cantidad":1,"precio":300}] }
-  ]
-}

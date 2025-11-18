@@ -1,6 +1,0 @@
-{
-  "cxc": [
-    { "id": 1, "cliente": "Cliente A", "monto": 500.00, "vence": "2025-12-01" },
-    { "id": 2, "cliente": "Cliente B", "monto": 300.00, "vence": "2025-11-30" }
-  ]
-}

@@ -1,5 +1,0 @@
-{
-  "activos_fijos": [
-    { "id": 1, "nombre": "Computadora", "valor": 850.00, "depreciacion_acum": 150.00 }
-  ]
-}

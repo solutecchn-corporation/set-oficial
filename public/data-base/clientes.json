@@ -1,6 +1,0 @@
-{
-  "clientes": [
-    { "id": 1, "nombre": "Cliente A", "telefono": "+504-3000-1111", "email": "clientea@example.com" },
-    { "id": 2, "nombre": "Cliente B", "telefono": "+504-3000-2222", "email": "clienteb@example.com" }
-  ]
-}
