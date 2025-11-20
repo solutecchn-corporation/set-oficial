@@ -7,6 +7,7 @@ import CorteCajaParcial from './CorteCajaParcial'
 import CorteCajaTotal from './CorteCajaTotal'
 import supabase from '../lib/supabaseClient'
 import ClienteSearchModal from '../components/ClienteSearchModal'
+import PaymentModal from '../components/PaymentModal'
 
 type Producto = {
   id: string;
@@ -92,7 +93,10 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   })
 
   const agregarAlCarrito = (producto: Producto) => {
-    if ((producto.stock ?? 0) <= 0) return;
+    const stockNum = Number(producto.stock ?? 0)
+    const precioNum = Number(producto.precio ?? 0)
+    if (stockNum < 1) return;
+    if (precioNum <= 0) return;
     setCarrito(prev => {
       const existente = prev.find(i => i.producto.id === producto.id);
       if (existente) {
@@ -146,6 +150,10 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   // Facturación: modal de selección y generación de factura HTML
   const [facturarModalOpen, setFacturarModalOpen] = useState(false)
   const [printingMode, setPrintingMode] = useState<'factura'|'cotizacion'>('factura')
+  // confirmación para guardar cotización (aparecerá AL FINAL del flujo)
+  const [cotizacionConfirmOpen, setCotizacionConfirmOpen] = useState(false)
+  const [cotizacionPendingClient, setCotizacionPendingClient] = useState<{ cliente?: string; rtn?: string | null } | null>(null)
+  const [cotizacionEditId, setCotizacionEditId] = useState<string | null>(null)
   const [clienteNormalModalOpen, setClienteNormalModalOpen] = useState(false)
   const [clienteSearchOpen, setClienteSearchOpen] = useState(false)
   const [clienteNombre, setClienteNombre] = useState('')
@@ -157,6 +165,10 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   const [clienteCorreo, setClienteCorreo] = useState('')
   const [clienteExonerado, setClienteExonerado] = useState<boolean>(false)
   const [createClienteModalOpen, setCreateClienteModalOpen] = useState(false)
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [paymentDone, setPaymentDone] = useState(false)
+  const [paymentInfo, setPaymentInfo] = useState<any | null>(null)
+  const [invoiceAfterPayment, setInvoiceAfterPayment] = useState(false)
 
   // Autocomplete RTN -> nombre: intenta traer nombre desde `clientenatural` o `clientejuridico` según `clienteTipo`
   const handleRTNChange = async (val: string) => {
@@ -203,8 +215,114 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   }
 
   const openSelector = (mode: 'factura'|'cotizacion') => {
+    if (mode === 'cotizacion') {
+      // iniciar flujo de cotización (la confirmación para guardar se hará al final)
+      setPrintingMode('cotizacion')
+      setFacturarModalOpen(true)
+      return
+    }
     setPrintingMode(mode)
     setFacturarModalOpen(true)
+  }
+
+  // guarda la cotización y sus detalles en la base de datos
+  const saveCotizacion = async (opts: { cliente?: string, rtn?: string | null, cliente_id?: number, cotizacion_id?: string | number } = {}) => {
+    try {
+      if (!carrito || carrito.length === 0) return null
+      const subtotalVal = subtotalCalc()
+      const isvVal = isvTotal
+      const imp18Val = imp18Total
+      const impTurVal = impTouristTotal
+      const impuestoVal = Number(isvVal || 0) + Number(imp18Val || 0) + Number(impTurVal || 0)
+      const totalVal = subtotalVal + impuestoVal
+
+      // try resolve cliente_id if rtn provided or use opts.cliente_id
+      let clienteId: number | null = opts.cliente_id ?? null
+      if (!clienteId && opts.rtn) {
+        try {
+          const { data: found, error: fErr } = await supabase.from('clientes').select('id').eq('rtn', opts.rtn).maybeSingle()
+          if (!fErr && found && (found as any).id) clienteId = (found as any).id
+        } catch (e) { /* ignore */ }
+      }
+
+      const usuarioVal = userName || 'system'
+      const numeroCot = String(Math.floor(Math.random() * 900000) + 100000)
+
+      const payload: any = {
+        cliente_id: clienteId,
+        usuario: usuarioVal,
+        numero_cotizacion: numeroCot,
+        validez_dias: 30,
+        subtotal: subtotalVal,
+        impuesto: impuestoVal,
+        total: totalVal,
+        estado: 'pendiente'
+      }
+
+      // si estamos editando una cotización existente, actualizarla en lugar de insertar
+      let cotizacionId: any = opts['cotizacion_id'] ?? cotizacionEditId
+      if (cotizacionId) {
+        const updatePayload: any = {
+          cliente_id: payload.cliente_id || null,
+          usuario: payload.usuario,
+          validez_dias: payload.validez_dias,
+          subtotal: payload.subtotal,
+          impuesto: payload.impuesto,
+          total: payload.total,
+          estado: payload.estado
+        }
+        const { error: upErr } = await supabase.from('cotizaciones').update(updatePayload).eq('id', cotizacionId)
+        if (upErr) {
+          console.warn('Error actualizando cotizacion:', upErr)
+          return null
+        }
+      } else {
+        const { data: insData, error: insErr } = await supabase.from('cotizaciones').insert([payload]).select('id').maybeSingle()
+        if (insErr) {
+          console.warn('Error insertando cotizacion:', insErr)
+          return null
+        }
+        cotizacionId = (insData as any)?.id || null
+        if (!cotizacionId) return null
+      }
+
+      const detalles = carrito.map(it => {
+        const price = Number(it.producto.precio || 0)
+        const qty = Number(it.cantidad || 0)
+        const exento = Boolean(it.producto.exento)
+        const aplica18 = Boolean((it.producto as any).aplica_impuesto_18)
+        const aplicaTur = Boolean((it.producto as any).aplica_impuesto_turistico)
+        const isvItem = exento ? 0 : (aplica18 ? 0 : price * (taxRate || 0) * qty)
+        const imp18Item = exento ? 0 : (aplica18 ? price * (tax18Rate || 0) * qty : 0)
+        const turItem = exento ? 0 : (aplicaTur ? price * (taxTouristRate || 0) * qty : 0)
+        const subtotalItem = price * qty
+        const totalItem = subtotalItem + isvItem + imp18Item + turItem
+        return {
+          cotizacion_id: cotizacionId,
+          producto_id: it.producto.id || null,
+          descripcion: it.producto.nombre || '',
+          cantidad: qty,
+          precio_unitario: price,
+          subtotal: subtotalItem,
+          descuento: 0,
+          total: totalItem
+        }
+      })
+
+      // reemplazar detalles: borrar existentes y volver a insertar
+      try {
+        await supabase.from('cotizaciones_detalle').delete().eq('cotizacion_id', cotizacionId)
+      } catch (e) {
+        // ignore
+      }
+      const { error: detErr } = await supabase.from('cotizaciones_detalle').insert(detalles)
+      if (detErr) console.warn('Error insertando cotizaciones_detalle:', detErr)
+      else console.debug('Cotizacion guardada id=', cotizacionId)
+      return cotizacionId
+    } catch (e) {
+      console.warn('Error guardando cotizacion:', e)
+      return null
+    }
   }
 
   const buildProductosTabla = () => {
@@ -253,7 +371,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
     <div style="margin-top:8px;text-align:right"><div>SubTotal: L ${subtotal.toFixed(2)}</div><div>ISV (${(taxRate*100).toFixed(2)}%): L ${impuestoISV.toFixed(2)}</div><div>Impuesto 18%: L ${impuesto18.toFixed(2)}</div><div>Impuesto turístico (${(taxTouristRate*100).toFixed(2)}%): L ${impuestoTuristico.toFixed(2)}</div><h3>Total: L ${ft.toFixed(2)}</h3></div>
     ${footerNote}
     <div style="margin-top:20px;text-align:center"><small>Gracias por su preferencia</small></div>
-    </div><script>window.onload=function(){window.print();setTimeout(()=>window.close(),800);}</script></body></html>`
+    </div></body></html>`
 
     return htmlOutput
   }
@@ -261,19 +379,14 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   const subtotalCalc = () => carrito.reduce((s, it) => s + (Number(it.producto.precio || 0) * it.cantidad), 0)
   const taxableSubtotalCalc = () => carrito.reduce((s, it) => s + ((it.producto.exento ? 0 : (Number(it.producto.precio || 0) * it.cantidad))), 0)
 
-  const doFacturaClienteFinal = () => {
-    const html = generateFacturaHTML({ cliente: 'Consumidor Final', rtn: 'C/F' }, printingMode)
-    const w = window.open('', '_blank')
-    if (w) {
-      w.document.open()
-      w.document.write(html)
-      w.document.close()
-    } else {
-      const newWin = window.open('about:blank')
-      if (newWin) { newWin.document.open(); newWin.document.write(html); newWin.document.close() }
-    }
-    if (printingMode === 'factura') vaciarCarrito()
+  const doFacturaClienteFinal = async () => {
+    // abrir flujo de pago antes de facturar para Consumidor Final
+    setClienteTipo('final')
+    setClienteNombre('Consumidor Final')
+    setClienteRTN('C/F')
     setFacturarModalOpen(false)
+    setInvoiceAfterPayment(true)
+    setPaymentModalOpen(true)
   }
 
   const doFacturaClienteNormal = () => {
@@ -290,6 +403,92 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
     setClienteRTN('')
     setClienteNormalModalOpen(true)
     setFacturarModalOpen(false)
+  }
+
+  // finalize factura: mark cotizacion, insert venta, print
+  const finalizeFacturaForCliente = async (cliente: string, rtn: string, paymentPayload: any) => {
+    const html = generateFacturaHTML({ cliente, rtn }, printingMode)
+
+    // Si estamos facturando desde una cotización en edición, marcarla primero
+    if (printingMode === 'factura' && cotizacionEditId) {
+      try {
+        console.debug('Pre-print: marcando cotizacion como aceptada, id=', cotizacionEditId)
+        const { error: upErr } = await supabase.from('cotizaciones').update({ estado: 'aceptada' }).eq('id', cotizacionEditId)
+        if (upErr) console.warn('Error marcando cotizacion (pre-print):', upErr)
+        else try { setCotizacionEditId(null) } catch (e) {}
+      } catch (e) {
+        console.warn('Error marcacion pre-print:', e)
+      }
+    }
+
+    // registrar venta
+    if (printingMode === 'factura') {
+      try {
+        let clienteIdNum: number | null = null
+        try {
+          if (rtn) {
+            const { data: foundClient } = await supabase.from('clientes').select('id').eq('rtn', rtn).maybeSingle()
+            if (foundClient && (foundClient as any).id) clienteIdNum = (foundClient as any).id
+          }
+        } catch (e) { /* ignore */ }
+
+        const tipoPagoValue = paymentPayload && paymentPayload.tipoPagoString ? String(paymentPayload.tipoPagoString) : ''
+        const ventaPayload: any = {
+          cliente_id: clienteIdNum,
+          usuario: userName || 'system',
+          numero_factura: String(Math.floor(Math.random() * 900000) + 100000),
+          tipo_pago: tipoPagoValue,
+          subtotal: Number(subtotal || 0),
+          impuesto: Number((isvTotal + imp18Total + impTouristTotal) || 0),
+          total: Number(total || 0),
+          estado: 'pagada'
+        }
+        const { data: ventaIns, error: ventaErr } = await supabase.from('ventas').insert([ventaPayload]).select('id').maybeSingle()
+        if (ventaErr) console.warn('Error insertando venta:', ventaErr)
+        else console.debug('Venta creada id=', (ventaIns as any)?.id)
+      } catch (e) {
+        console.warn('Error preparando venta antes de imprimir:', e)
+      }
+    }
+
+    // imprimir
+    const w = window.open('', '_blank')
+    if (w) {
+      w.document.open(); w.document.write(html); w.document.close()
+      try { w.focus(); w.print() } catch (e) { console.warn('Error during print (finalize):', e) }
+      setTimeout(() => { try { w.close() } catch (e) {} }, 800)
+    }
+
+    // post-print cleanup
+    if (printingMode === 'factura') {
+      vaciarCarrito()
+      await handlePostPrint()
+    }
+    if (printingMode === 'cotizacion') {
+      setCotizacionPendingClient({ cliente, rtn })
+      setCotizacionConfirmOpen(true)
+    }
+  }
+
+  // handle cleanup after a print/factura: delete original cotizacion if editing
+  const handlePostPrint = async () => {
+    if (printingMode === 'factura' && cotizacionEditId) {
+      try {
+        console.debug('handlePostPrint: marcando cotizacion como facturado, id=', cotizacionEditId)
+        const { error: upErr } = await supabase.from('cotizaciones').update({ estado: 'aceptada' }).eq('id', cotizacionEditId)
+        if (upErr) {
+          console.warn('Error marcando cotizacion como facturado:', upErr)
+        } else {
+          console.debug('Cotizacion marcada como facturado:', cotizacionEditId)
+        }
+        // opcional: si prefieres eliminar, descomenta las siguientes líneas
+        // await supabase.from('cotizaciones_detalle').delete().eq('cotizacion_id', cotizacionEditId)
+        // await supabase.from('cotizaciones').delete().eq('id', cotizacionEditId)
+        // setCotizacionEditId(null)
+      } catch (e) {
+        console.warn('Error procesando cotizacion tras facturar', e)
+      }
+    }
   }
 
     useEffect(() => {
@@ -340,9 +539,39 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
     }
 
     const html = generateFacturaHTML({ cliente: clienteNombre || 'Cliente', rtn: clienteRTN || '' }, printingMode)
+
+    if (printingMode === 'factura' && cotizacionEditId) {
+      try {
+        console.debug('Pre-print: marcando cotizacion como facturado, id=', cotizacionEditId)
+        const { error: upErr } = await supabase.from('cotizaciones').update({ estado: 'aceptada' }).eq('id', cotizacionEditId)
+        if (upErr) {
+          console.warn('Error marcando cotizacion como facturado (pre-print):', upErr)
+        } else {
+          console.debug('Cotizacion marcada como facturado (pre-print):', cotizacionEditId)
+          try { setCotizacionEditId(null) } catch (e) {}
+        }
+      } catch (e) {
+        console.warn('Error marcacion pre-print:', e)
+      }
+    }
+
     const w = window.open('', '_blank')
-    if (w) { w.document.open(); w.document.write(html); w.document.close() }
-    if (printingMode === 'factura') vaciarCarrito()
+    if (w) {
+      w.document.open(); w.document.write(html); w.document.close()
+      try { w.focus(); w.print() } catch (e) { console.warn('Error during print (cliente normal):', e) }
+      setTimeout(() => { try { w.close() } catch (e) {} }, 800)
+    }
+    const afterFinish = async () => {
+      if (printingMode === 'factura') {
+        vaciarCarrito()
+        await handlePostPrint()
+      }
+      if (printingMode === 'cotizacion') {
+        setCotizacionPendingClient({ cliente: clienteNombre || 'Cliente', rtn: clienteRTN || null })
+        setCotizacionConfirmOpen(true)
+      }
+    }
+    await afterFinish()
     setClienteNormalModalOpen(false)
   }
 
@@ -464,6 +693,55 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
     })()
     return () => { mounted = false }
   }, [])
+
+  // Si hay una cotización para cargar desde otra vista, cargarla en el carrito
+  useEffect(() => {
+    const doLoad = (payloadRaw?: any) => {
+      try {
+        const parsed = payloadRaw || (() => {
+          const raw = localStorage.getItem('cotizacion_to_load')
+          return raw ? JSON.parse(raw) : null
+        })()
+        if (!parsed) return
+        // si la payload contiene header.id, marcar que estamos editando esa cotización
+        try { setCotizacionEditId(parsed.header && parsed.header.id ? String(parsed.header.id) : null) } catch (e) {}
+        const detalles = Array.isArray(parsed.detalles) ? parsed.detalles : []
+        const items: ItemCarrito[] = detalles.map((d: any) => {
+          const prodMatch = productos.find(p => String(p.id) === String(d.producto_id))
+          const producto: Producto = prodMatch ? { ...prodMatch } : {
+            id: String(d.producto_id || ('temp-' + Math.random().toString(36).slice(2,8))),
+            sku: d.sku ?? undefined,
+            nombre: d.descripcion || d.nombre || 'Artículo',
+            precio: Number(d.precio_unitario || d.precio || 0),
+            categoria: undefined,
+            exento: false,
+            aplica_impuesto_18: false,
+            aplica_impuesto_turistico: false,
+            stock: 0,
+            imagen: undefined
+          }
+          return { producto, cantidad: Number(d.cantidad || 1) }
+        })
+        if (items.length > 0) setCarrito(items)
+        try { localStorage.removeItem('cotizacion_to_load') } catch (e) {}
+      } catch (e) {
+        // ignore parse errors
+      }
+    }
+
+    // attempt load from storage when productos change (fallback)
+    doLoad()
+
+    // listen for explicit event dispatch
+    const handler = (ev: Event) => {
+      try {
+        const ce = ev as CustomEvent
+        doLoad(ce.detail)
+      } catch (e) {}
+    }
+    window.addEventListener('cotizacion:load', handler as EventListener)
+    return () => { window.removeEventListener('cotizacion:load', handler as EventListener) }
+  }, [productos])
 
   const [userName, setUserName] = useState<string | null>(null)
   const [userRole, setUserRole] = useState<string | null>(null)
@@ -680,6 +958,25 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
             placeholder="Buscar por nombre o SKU..."
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const q = String(busqueda || '').trim().toLowerCase()
+                if (!q) return
+                // Prefer exact SKU match, otherwise take first filtered
+                const exact = productosFiltrados.find(p => String(p.sku || '').toLowerCase() === q)
+                const candidato = exact || productosFiltrados[0]
+                if (candidato) {
+                  const stockNum = Number(candidato.stock ?? 0)
+                  const precioNum = Number(candidato.precio ?? 0)
+                  if (stockNum >= 1 && precioNum > 0) {
+                    agregarAlCarrito(candidato)
+                  } else {
+                    // opcional: mostrar indicación rápida
+                    console.debug('No se puede agregar por stock/precio', { id: candidato.id, stockNum, precioNum })
+                  }
+                }
+              }
+            }}
             style={{ flex: 1, minWidth: 220, padding: '10px 12px', borderRadius: 8, border: '1px solid #cbd5e1' }}
           />
           <select
@@ -747,14 +1044,23 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
                           })()}
                         </td>
                         <td style={tdStyle}>
-                          <button
-                            onClick={() => agregarAlCarrito(prod)}
-                            disabled={Number(prod.stock || 0) === 0}
-                            className="btn-opaque"
-                            style={{ padding: '6px 14px', borderRadius: 6, fontSize: '0.8rem' }}
-                          >
-                            {Number(prod.stock || 0) > 0 ? 'Agregar' : 'Agotado'}
-                          </button>
+                          {(() => {
+                            const stockNum = Number(prod.stock || 0)
+                            const precioNum = Number(prod.precio || 0)
+                            const disabled = stockNum < 1 || precioNum <= 0
+                            const label = disabled ? (stockNum < 1 ? 'Agotado' : 'Sin precio') : 'Agregar'
+                            return (
+                              <button
+                                onClick={() => agregarAlCarrito(prod)}
+                                disabled={disabled}
+                                className="btn-opaque"
+                                style={{ padding: '6px 14px', borderRadius: 6, fontSize: '0.8rem' }}
+                                title={disabled ? (stockNum < 1 ? 'No hay stock disponible' : 'El producto no tiene precio válido') : 'Agregar al carrito'}
+                              >
+                                {label}
+                              </button>
+                            )
+                          })()}
                         </td>
                       </tr>
                     ))
@@ -821,6 +1127,32 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
                 </div>
               </div>
             )}
+
+              {/* Confirmación antes de iniciar flujo de cotización */}
+              {cotizacionConfirmOpen && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+                  <div style={{ width: 520, maxWidth: '95%', background: 'white', borderRadius: 12, padding: 20, boxShadow: '0 18px 50px rgba(2,6,23,0.35)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <h3 style={{ margin: 0 }}>Guardar cotización</h3>
+                      <button onClick={() => setCotizacionConfirmOpen(false)} className="btn-opaque" style={{ padding: '6px 10px' }}>Cerrar</button>
+                    </div>
+                    <p style={{ color: '#475569' }}>¿Desea guardar esta cotización en el sistema al finalizar el flujo?</p>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                      <button onClick={() => { setCotizacionConfirmOpen(false); setCotizacionPendingClient(null) }} className="btn-opaque" style={{ background: 'transparent', color: '#111' }}>No, cerrar</button>
+                      <button onClick={async () => {
+                        setCotizacionConfirmOpen(false)
+                        try {
+                          const savedId = await saveCotizacion(cotizacionPendingClient || {})
+                          if (savedId) setCotizacionEditId(String(savedId))
+                        } catch (e) {
+                          console.warn('Error guardando cotizacion desde confirm modal', e)
+                        }
+                        setCotizacionPendingClient(null)
+                      }} className="btn-opaque" style={{ background: '#2563eb', color: 'white' }}>Sí, guardar</button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
             {/* LISTA DE PRODUCTOS EN EL CARRITO (ABAJO) */}
             {carrito.length === 0 ? (
@@ -896,6 +1228,22 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
           </div>
         </div>
       )}
+
+      {/* Payment modal component (independent) */}
+      <PaymentModal open={paymentModalOpen} totalDue={total} onClose={() => setPaymentModalOpen(false)} onConfirm={async (p) => {
+        setPaymentInfo(p)
+        setPaymentDone(true)
+        // si se abrió para facturar inmediatamente (cliente final), proceder a facturar
+        if (invoiceAfterPayment) {
+          try {
+            setInvoiceAfterPayment(false)
+            await finalizeFacturaForCliente('Consumidor Final', 'C/F', p)
+          } catch (e) {
+            console.warn('Error facturando después del pago:', e)
+          }
+        }
+        setPaymentModalOpen(false)
+      }} />
 
       {/* Modal de selección para facturar */}
       {facturarModalOpen && (
@@ -983,7 +1331,11 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
                     }} />
               <button onClick={() => setClienteNormalModalOpen(false)} className="btn-opaque" style={{ background: 'transparent', color: '#111' }}>Cancelar</button>
               <button onClick={() => setCreateClienteModalOpen(true)} className="btn-opaque" style={{ background: 'transparent', color: '#0b5cff' }}>Crear cliente</button>
-              <button onClick={submitClienteNormal} className="btn-opaque" disabled={!clienteNombre || !clienteRTN} style={{ opacity: (!clienteNombre || !clienteRTN) ? 0.6 : 1 }}>Generar Factura</button>
+              {!paymentDone ? (
+                <button onClick={() => setPaymentModalOpen(true)} className="btn-opaque" disabled={!clienteNombre || !clienteRTN} style={{ opacity: (!clienteNombre || !clienteRTN) ? 0.6 : 1 }}>Realizar pago</button>
+              ) : (
+                <button onClick={submitClienteNormal} className="btn-opaque" disabled={!clienteNombre || !clienteRTN} style={{ opacity: (!clienteNombre || !clienteRTN) ? 0.6 : 1 }}>Generar Factura</button>
+              )}
             </div>
           </div>
         </div>
