@@ -44,6 +44,10 @@ export default function ProveedorEditModal({ open, onClose, row, onSave }: Props
   if (!open || !row) return null
 
   async function handleSave() {
+    if (!row) {
+      setError('No hay fila seleccionada')
+      return
+    }
     const missing: string[] = []
     if (!nombre.trim()) missing.push('Nombre')
     if (missing.length) { setError(`Faltan campos: ${missing.join(', ')}`); return }
