@@ -114,15 +114,9 @@ export default function ProductDetailModal({
                 src={encodeURI(imgSrc)}
                 alt="imagen"
                 style={{ maxWidth: 260, maxHeight: 260, objectFit: "contain" }}
-                onError={async (e) => {
+                onError={(e) => {
                   console.warn("Image load failed for", imgSrc);
-                  const signed = await tryResolveSignedUrl(imgSrc as string);
-                  if (signed) {
-                    setImgSrc(signed);
-                  } else {
-                    // hide broken image
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                  }
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
                 }}
               />
             ) : (
