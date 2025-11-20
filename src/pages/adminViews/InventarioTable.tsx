@@ -5,16 +5,18 @@ export default function InventarioTable() {
   return (
     <SupabaseTable
       table="inventario"
-      select="id, nombre, sku, codigo_barras, categoria, marca, descripcion, modelo, publicacion_web, exento, creado_en"
+      select="id, nombre, sku, codigo_barras, categoria, marca, descripcion, modelo, publicacion_web, exento, creado_en,imagen"
       title="Inventario (tabla `inventario`)"
       columns={[
+        "imagen",
         "sku",
         "nombre",
-        "imagen",
-        "categoria",
+       
         "marca",
+         "modelo",
+         "categoria",
         "descripcion",
-        "modelo",
+       
         "publicacion_web",
         "exento",
         "creado_en",

@@ -22,6 +22,9 @@ export default function ProductDetailModal({
 
   const rows = data || {};
   const [imgSrc, setImgSrc] = useState<string | null>(null);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+  const [urlCheck, setUrlCheck] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -33,26 +36,43 @@ export default function ProductDetailModal({
       }
       // If already a full URL, use it
       if (src.startsWith("http")) {
-        if (mounted) setImgSrc(src);
+        if (mounted) {
+          setImgSrc(src);
+          setResolvedUrl(src);
+        }
         return;
       }
+      // Normalize possible storage path that contains the public object URL
+      // e.g. "/storage/v1/object/public/<BUCKET>/path/to/file.png"
+      let objectPath = src;
+      const m = String(src).match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/);
+      if (m) {
+        objectPath = decodeURIComponent(m[2]);
+      }
+      // objectPath is already the path inside the bucket (e.g. 'inventario/uuid/file.png')
+      const BUCKET = (import.meta.env.VITE_SUPABASE_STORAGE_BUCKET as string) || "inventario";
       try {
         const sup = (await import("../lib/supabaseClient")).default;
-        const BUCKET = (import.meta.env.VITE_SUPABASE_STORAGE_BUCKET as string) || "inventario";
-        const publicRes = await sup.storage.from(BUCKET).getPublicUrl(src);
+        const publicRes = await sup.storage.from(BUCKET).getPublicUrl(objectPath);
         const publicUrl = (publicRes as any)?.data?.publicUrl || (publicRes as any)?.data?.publicURL || null;
         if (publicUrl) {
-          if (mounted) setImgSrc(publicUrl);
+          if (mounted) {
+            setImgSrc(publicUrl);
+            setResolvedUrl(publicUrl);
+          }
           return;
         }
-        const signed = await sup.storage.from(BUCKET).createSignedUrl(src, 60 * 60 * 24 * 7);
+        const signed = await sup.storage.from(BUCKET).createSignedUrl(objectPath, 60 * 60 * 24 * 7);
         if (signed.error) {
           console.warn("ProductDetailModal createSignedUrl error", signed.error);
           if (mounted) setImgSrc(null);
           return;
         }
         const url = (signed.data as any)?.signedUrl ?? null;
-        if (mounted) setImgSrc(url);
+        if (mounted) {
+          setImgSrc(url);
+          setResolvedUrl(url);
+        }
       } catch (err) {
         console.error("ProductDetailModal resolve error", err);
         if (mounted) setImgSrc(null);
@@ -63,6 +83,24 @@ export default function ProductDetailModal({
       mounted = false;
     };
   }, [rows]);
+
+  useEffect(() => {
+    let mounted = true;
+    const check = async () => {
+      setUrlCheck(null);
+      if (!resolvedUrl) return;
+      try {
+        const res = await fetch(resolvedUrl, { method: "HEAD" });
+        if (!mounted) return;
+        setUrlCheck(`HEAD ${res.status} ${res.statusText} - content-type: ${res.headers.get("content-type")}`);
+      } catch (err: any) {
+        if (!mounted) return;
+        setUrlCheck(`FETCH_ERROR: ${String(err)}`);
+      }
+    };
+    check();
+    return () => { mounted = false; };
+  }, [resolvedUrl]);
 
   return createPortal(
     <div
@@ -116,9 +154,31 @@ export default function ProductDetailModal({
                 style={{ maxWidth: 260, maxHeight: 260, objectFit: "contain" }}
                 onError={(e) => {
                   console.warn("Image load failed for", imgSrc);
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                  // keep the failed URL so we can show a fallback with a link
+                  setFailedUrl(imgSrc);
+                  setImgSrc(null);
                 }}
               />
+            ) : failedUrl ? (
+              <div
+                style={{
+                  width: 260,
+                  height: 200,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "#fff5f5",
+                  color: "#b91c1c",
+                  border: "1px dashed #fca5a5",
+                  padding: 8,
+                }}
+              >
+                <div style={{ marginBottom: 8, fontWeight: 700 }}>Error cargando imagen</div>
+                <a href={failedUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#b91c1c', wordBreak: 'break-all' }}>
+                  Abrir imagen
+                </a>
+              </div>
             ) : (
               <div
                 style={{

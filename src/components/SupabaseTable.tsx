@@ -200,6 +200,7 @@ export default function SupabaseTable({
           if (!img.startsWith("http")) return img;
           const m = img.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/);
           if (!m) return null;
+          // m[2] is the object path inside the bucket (e.g. 'inventario/uuid/file.png')
           return decodeURIComponent(m[2]);
         };
         const img = row?.imagen ?? null;
@@ -277,14 +278,24 @@ export default function SupabaseTable({
             <tbody>
               {filtered.map((row, idx) => (
                 <tr key={row.id ?? idx}>
-                  {displayedColumns.map((col) => (
-                    <td
-                      key={col}
-                      style={{ maxWidth: 420, wordBreak: "break-word" }}
-                    >
-                      {formatCell(row[col])}
-                    </td>
-                  ))}
+                  {displayedColumns.map((col) => {
+                    
+                    // Force render the imagen column using the raw row.imagen value
+                    if (col === "imagen") {
+                      const val = row?.imagen ?? null;
+                      if (!val) console.debug("SupabaseTable: row has no imagen for id", row?.id, row);
+                      return (
+                        <td key={col} style={{ maxWidth: 420, wordBreak: 'break-word' as any }}>
+                          {val ? <Thumbnail src={String(val)} /> : <span style={{ color: '#6b7280' }}>-</span>}
+                        </td>
+                      );
+                    }
+                    return (
+                      <td key={col} style={{ maxWidth: 420, wordBreak: 'break-word' as any }}>
+                        {formatCell(row[col])}
+                      </td>
+                    );
+                  })}
                   <td className="admin-actions">
                     <button
                       className="btn-opaque"
@@ -357,55 +368,83 @@ function formatCell(v: any) {
 
 function Thumbnail({ src }: { src: string }) {
   const [imgSrc, setImgSrc] = useState<string | null>(null);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
-    const resolve = async () => {
-      if (!src) return;
-      // If src looks like a full URL, use it directly
-      if (src.startsWith("http")) {
-        if (mounted) setImgSrc(src);
+  const resolve = async () => {
+    if (!src) return;
+    // If src looks like a full URL, use it directly
+    if (src.startsWith("http")) {
+      if (mounted) setImgSrc(src);
+      return;
+    }
+    // Normalize possible storage public path: '/storage/v1/object/public/<BUCKET>/path'
+    let objectPath = src;
+    const m = String(src).match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/);
+    if (m) {
+      objectPath = decodeURIComponent(m[2]);
+    }
+    // objectPath is already the path inside the bucket (e.g. 'inventario/uuid/file.png')
+    const BUCKET = (import.meta.env.VITE_SUPABASE_STORAGE_BUCKET as string) || "inventario";
+    try {
+      const sup = (await import("../lib/supabaseClient")).default;
+      const BUCKET = (import.meta.env.VITE_SUPABASE_STORAGE_BUCKET as string) || "inventario";
+      // objectPath is a storage path (e.g. 'inventario/uuid/file.png')
+      const publicRes = await sup.storage.from(BUCKET).getPublicUrl(objectPath);
+      const publicUrl = (publicRes as any)?.data?.publicUrl || (publicRes as any)?.data?.publicURL || null;
+      if (publicUrl) {
+        if (mounted) setImgSrc(publicUrl);
         return;
       }
-      try {
-        const sup = (await import("../lib/supabaseClient")).default;
-        const BUCKET = (import.meta.env.VITE_SUPABASE_STORAGE_BUCKET as string) || "inventario";
-        // src is a storage path (e.g. 'inventario/uuid/file.png')
-        const publicRes = await sup.storage.from(BUCKET).getPublicUrl(src);
-        const publicUrl = (publicRes as any)?.data?.publicUrl || (publicRes as any)?.data?.publicURL || null;
-        if (publicUrl) {
-          if (mounted) setImgSrc(publicUrl);
-          return;
-        }
-        const signed = await sup.storage.from(BUCKET).createSignedUrl(src, 60 * 60 * 24 * 7);
-        if (signed.error) {
-          console.warn("Thumbnail createSignedUrl error", signed.error);
-          if (mounted) setImgSrc(null);
-          return;
-        }
-        const url = (signed.data as any)?.signedUrl ?? null;
-        if (mounted) setImgSrc(url);
-      } catch (err) {
-        console.error("Thumbnail resolve error", err);
+      const signed = await sup.storage.from(BUCKET).createSignedUrl(objectPath, 60 * 60 * 24 * 7);
+      if (signed.error) {
+        console.warn("Thumbnail createSignedUrl error", signed.error);
         if (mounted) setImgSrc(null);
+        return;
       }
-    };
+      const url = (signed.data as any)?.signedUrl ?? null;
+      if (mounted) setImgSrc(url);
+    } catch (err) {
+      console.error("Thumbnail resolve error", err);
+      if (mounted) setImgSrc(null);
+    }
+  };
     resolve();
     return () => {
       mounted = false;
     };
   }, [src]);
 
-  if (!imgSrc) return null;
+  // While resolving, render a small placeholder so the table cell stays visible.
+  if (!imgSrc && !failedUrl) {
+    return (
+      <div style={{ width: 140, height: 80, display: "flex", alignItems: "center", justifyContent: "center", background: '#f3f4f6', color: '#6b7280', borderRadius: 4 }}>
+        Cargando...
+      </div>
+    );
+  }
 
+  if (imgSrc) {
+    return (
+      <img
+        src={encodeURI(imgSrc)}
+        alt="img"
+        style={{ maxWidth: 140, maxHeight: 80, objectFit: "contain" }}
+        onError={(e) => {
+          setFailedUrl(imgSrc);
+          setImgSrc(null);
+        }}
+      />
+    );
+  }
+
+  // fallback when thumbnail failed to load: show small link/placeholder
   return (
-    <img
-      src={encodeURI(imgSrc)}
-      alt="img"
-      style={{ maxWidth: 140, maxHeight: 80, objectFit: "contain" }}
-      onError={(e) => {
-        (e.currentTarget as HTMLImageElement).style.display = "none";
-      }}
-    />
+    <div style={{ width: 140, height: 80, display: "flex", alignItems: "center", justifyContent: "center", background: '#fff7ed', border: '1px dashed #f59e0b', padding: 4 }}>
+      <a href={failedUrl ?? src} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#92400e', textDecoration: 'underline', wordBreak: 'break-all' }}>
+        Abrir imagen
+      </a>
+    </div>
   );
 }
