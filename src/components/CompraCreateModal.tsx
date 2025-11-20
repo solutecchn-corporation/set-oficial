@@ -149,6 +149,33 @@ export default function CompraCreateModal({ open, onClose, onCreated }: Props) {
         throw detRes.error
       }
 
+      // Registrar cada item en registro_de_inventario como ENTRADA
+      try {
+        // referencia y usuario
+        const referenciaText = numeroDocumento ? `Compra - ${numeroDocumento}` : `Compra ${compraId}`
+        let usuarioText = 'sistema'
+        try {
+          const raw = localStorage.getItem('user')
+          if (raw) {
+            const u = JSON.parse(raw)
+            usuarioText = u.username ? `${u.username}${u.role ? ` (${u.role})` : ''}` : String(u)
+          }
+        } catch (e) {
+          // ignore
+        }
+
+        const now = new Date().toISOString()
+        const registroRows = items.map(it => ({ producto_id: it.producto_id, cantidad: it.cantidad, tipo_de_movimiento: 'ENTRADA', referencia: referenciaText, usuario: usuarioText, fecha_salida: now }))
+        const regRes = await supabase.from('registro_de_inventario').insert(registroRows)
+        if (regRes.error) {
+          console.warn('Error registrando en registro_de_inventario', regRes.error)
+          // not critical: we don't rollback compra, but inform user
+          setError('Compra guardada, pero falló el registro en inventario: ' + regRes.error.message)
+        }
+      } catch (e) {
+        console.warn('Registro inventario fallo', e)
+      }
+
       // success
       resetForm()
       onClose()
