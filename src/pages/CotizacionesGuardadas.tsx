@@ -3,12 +3,18 @@ import supabase from '../lib/supabaseClient'
 
 type Cotizacion = {
   id: number;
+  cliente_id?: number;
   cliente?: string;
   rtn?: string | null;
   subtotal?: number;
   isv?: number;
   impuesto_18?: number;
   impuesto_turistico?: number;
+  impuesto?: number;
+  numero_cotizacion?: string;
+  fecha_cotizacion?: string;
+  usuario?: string;
+  estado?: string;
   total?: number;
   creada_en?: string;
   nota?: string | null;
@@ -21,12 +27,15 @@ type CotizacionDetalle = {
   producto_id?: string | number;
   sku?: string | null;
   nombre?: string | null;
+  descripcion?: string | null;
   cantidad?: number;
   precio_unitario?: number;
   subtotal?: number;
   isv?: number;
   impuesto_18?: number;
   impuesto_turistico?: number;
+  descuento?: number;
+  total?: number;
 }
 
 export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }) {

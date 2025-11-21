@@ -392,33 +392,80 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
       }
     }
 
-    // registrar venta
+    // registrar venta y detalles
     if (printingMode === 'factura') {
       try {
         let clienteIdNum: number | null = null
         try {
           if (rtn) {
-            const { data: foundClient } = await supabase.from('clientes').select('id').eq('rtn', rtn).maybeSingle()
+            const { data: foundClient, error: foundErr } = await supabase.from('clientes').select('id').eq('rtn', rtn).maybeSingle()
+            if (foundErr) console.debug('Error buscando cliente por RTN (no fatal):', foundErr)
             if (foundClient && (foundClient as any).id) clienteIdNum = (foundClient as any).id
           }
-        } catch (e) { /* ignore */ }
+        } catch (e) { console.debug('ignore', e) }
 
         const tipoPagoValue = paymentPayload && paymentPayload.tipoPagoString ? String(paymentPayload.tipoPagoString) : ''
+        // generar número de factura (texto)
+        const facturaNum = String(Math.floor(Math.random() * 900000) + 100000)
         const ventaPayload: any = {
           cliente_id: clienteIdNum,
           usuario: userName || 'system',
-          numero_factura: String(Math.floor(Math.random() * 900000) + 100000),
+          factura: facturaNum,
           tipo_pago: tipoPagoValue,
           subtotal: Number(subtotal || 0),
           impuesto: Number((isvTotal + imp18Total + impTouristTotal) || 0),
           total: Number(total || 0),
           estado: 'pagada'
         }
-        const { data: ventaIns, error: ventaErr } = await supabase.from('ventas').insert([ventaPayload]).select('id').maybeSingle()
-        if (ventaErr) console.warn('Error insertando venta:', ventaErr)
-        else console.debug('Venta creada id=', (ventaIns as any)?.id)
+
+        const { data: ventaInsRaw, error: ventaErr } = await supabase.from('ventas').insert([ventaPayload]).select('id, factura')
+        console.debug('Insert venta response:', { ventaInsRaw, ventaErr })
+        if (ventaErr) {
+          console.warn('Error insertando venta:', ventaErr)
+          alert('Error guardando venta: ' + (ventaErr.message || JSON.stringify(ventaErr)))
+        } else {
+          const ventaRow: any = Array.isArray(ventaInsRaw) ? ventaInsRaw[0] : ventaInsRaw
+          let ventaId: string | null = ventaRow ? (ventaRow.id || ventaRow['id']) : null
+          if (!ventaId) {
+            try {
+              const { data: foundByFact, error: fbErr } = await supabase.from('ventas').select('id').eq('factura', facturaNum).maybeSingle()
+              if (fbErr) console.debug('Error buscando venta por factura (fallback):', fbErr)
+              if (foundByFact && (foundByFact as any).id) ventaId = (foundByFact as any).id
+            } catch (e) { console.debug('fallback lookup error', e) }
+          }
+
+          if (!ventaId) {
+            console.warn('No se pudo obtener venta.id tras insertar. Respuesta:', ventaInsRaw)
+            alert('Advertencia: venta creada pero no se pudo recuperar su id. Revisa la tabla ventas.')
+          } else {
+            // insertar detalles con ventaId en la columna `factura` (uuid)
+            const detalles = carrito.map(it => {
+              const price = Number(it.producto.precio || 0)
+              const qty = Number(it.cantidad || 0)
+              const subtotalItem = price * qty
+              const descuento = 0
+              const totalItem = subtotalItem - descuento
+              return {
+                factura: ventaId,
+                producto_id: it.producto.id,
+                cantidad: qty,
+                precio_unitario: price,
+                subtotal: subtotalItem,
+                descuento,
+                total: totalItem
+              }
+            })
+            const { data: detalleIns, error: detErr } = await supabase.from('ventas_detalle').insert(detalles).select('id')
+            console.debug('Insert ventas_detalle response:', { detalleIns, detErr })
+            if (detErr) {
+              console.warn('Error insertando ventas_detalle:', detErr)
+              alert('Error guardando detalle de venta: ' + (detErr.message || JSON.stringify(detErr)))
+            }
+          }
+        }
       } catch (e) {
         console.warn('Error preparando venta antes de imprimir:', e)
+        alert('Error preparando venta antes de imprimir: ' + String(e))
       }
     }
 
