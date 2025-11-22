@@ -475,52 +475,73 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
       }
     }
 
-    // imprimir: abrir ventana, esperar a que imágenes carguen y luego imprimir
-    const w = window.open('', '_blank')
-    if (w) {
-      w.document.open(); w.document.write(html); w.document.close()
-      const printWhenReady = () => {
-        try { w.focus(); w.print() } catch (e) { console.warn('Error during print (finalize):', e) }
-        setTimeout(() => { try { w.close() } catch (e) {} }, 800)
-      }
+    // imprimir directamente usando un iframe oculto (no abrir nueva pestaña)
+    try {
+      const iframe = document.createElement('iframe')
+      iframe.style.position = 'fixed'
+      iframe.style.right = '0'
+      iframe.style.bottom = '0'
+      iframe.style.width = '0'
+      iframe.style.height = '0'
+      iframe.style.border = '0'
+      iframe.style.overflow = 'hidden'
+      iframe.setAttribute('aria-hidden', 'true')
+      document.body.appendChild(iframe)
 
-      const tryPrint = () => {
-        try {
-          const imgs = w.document.images
-          if (imgs && imgs.length > 0) {
-            let loaded = 0
-            for (let i = 0; i < imgs.length; i++) {
-              const img = imgs[i] as HTMLImageElement
-              if (img.complete) {
-                loaded++
-              } else {
-                img.addEventListener('load', () => { loaded++; if (loaded === imgs.length) printWhenReady() })
-                img.addEventListener('error', () => { loaded++; if (loaded === imgs.length) printWhenReady() })
+      const win = iframe.contentWindow
+      const doc = iframe.contentDocument || iframe.contentWindow?.document
+      if (!doc || !win) {
+        try { document.body.removeChild(iframe) } catch (e) {}
+      } else {
+        doc.open()
+        doc.write(html)
+        doc.close()
+
+        const printWhenReady = () => {
+          try { win.focus(); win.print() } catch (e) { console.warn('Error during iframe print (finalize):', e) }
+          setTimeout(() => { try { document.body.removeChild(iframe) } catch (e) {} }, 800)
+        }
+
+        const tryPrint = () => {
+          try {
+            const imgs = doc.images
+            if (imgs && imgs.length > 0) {
+              let loaded = 0
+              for (let i = 0; i < imgs.length; i++) {
+                const img = imgs[i] as HTMLImageElement
+                if (img.complete) {
+                  loaded++
+                } else {
+                  img.addEventListener('load', () => { loaded++; if (loaded === imgs.length) printWhenReady() })
+                  img.addEventListener('error', () => { loaded++; if (loaded === imgs.length) printWhenReady() })
+                }
               }
+              if (loaded === imgs.length) printWhenReady()
+            } else {
+              printWhenReady()
             }
-            if (loaded === imgs.length) printWhenReady()
-          } else {
-            printWhenReady()
+          } catch (e) {
+            try {
+              win.addEventListener('load', printWhenReady)
+            } catch (e) {}
+            setTimeout(printWhenReady, 1000)
+          }
+        }
+
+        try {
+          if (doc.readyState === 'complete') tryPrint()
+          else {
+            win.addEventListener('load', tryPrint)
+            setTimeout(tryPrint, 1500)
           }
         } catch (e) {
-          // Fallback: esperar al evento load de la ventana y/o un timeout
-          try {
-            w.addEventListener('load', printWhenReady)
-          } catch (e) {}
-          setTimeout(printWhenReady, 1000)
+          setTimeout(tryPrint, 800)
         }
       }
-
-      try {
-        if (w.document.readyState === 'complete') {
-          tryPrint()
-        } else {
-          w.addEventListener('load', tryPrint)
-          setTimeout(tryPrint, 1500)
-        }
-      } catch (e) {
-        setTimeout(tryPrint, 800)
-      }
+    } catch (e) {
+      console.warn('Direct print failed, falling back to opening new window', e)
+      const w = window.open('', '_blank')
+      if (w) { w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try { w.print(); w.close() } catch (e) {} }, 800) }
     }
 
     // post-print cleanup
@@ -853,7 +874,8 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
       console.warn('Error upsert cliente:', e)
     }
 
-    const html = await generateFacturaHTML({ cliente: clienteNombre || 'Cliente', rtn: clienteRTN || '' }, printingMode, {
+    const generator = (printFormat === 'cinta') ? generateFacturaHTMLCinta : generateFacturaHTML
+    const html = await generator({ cliente: clienteNombre || 'Cliente', rtn: clienteRTN || '' }, printingMode, {
       carrito,
       subtotal: subtotalCalc(),
       isvTotal,
@@ -923,50 +945,73 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
       }
     }
 
-    const w = window.open('', '_blank')
-    if (w) {
-      w.document.open(); w.document.write(html); w.document.close()
-      const printWhenReady = () => {
-        try { w.focus(); w.print() } catch (e) { console.warn('Error during print (cliente normal):', e) }
-        setTimeout(() => { try { w.close() } catch (e) {} }, 800)
-      }
+    // imprimir directamente usando iframe oculto
+    try {
+      const iframe = document.createElement('iframe')
+      iframe.style.position = 'fixed'
+      iframe.style.right = '0'
+      iframe.style.bottom = '0'
+      iframe.style.width = '0'
+      iframe.style.height = '0'
+      iframe.style.border = '0'
+      iframe.style.overflow = 'hidden'
+      iframe.setAttribute('aria-hidden', 'true')
+      document.body.appendChild(iframe)
 
-      const tryPrint = () => {
-        try {
-          const imgs = w.document.images
-          if (imgs && imgs.length > 0) {
-            let loaded = 0
-            for (let i = 0; i < imgs.length; i++) {
-              const img = imgs[i] as HTMLImageElement
-              if (img.complete) {
-                loaded++
-              } else {
-                img.addEventListener('load', () => { loaded++; if (loaded === imgs.length) printWhenReady() })
-                img.addEventListener('error', () => { loaded++; if (loaded === imgs.length) printWhenReady() })
+      const win = iframe.contentWindow
+      const doc = iframe.contentDocument || iframe.contentWindow?.document
+      if (!doc || !win) {
+        try { document.body.removeChild(iframe) } catch (e) {}
+      } else {
+        doc.open()
+        doc.write(html)
+        doc.close()
+
+        const printWhenReady = () => {
+          try { win.focus(); win.print() } catch (e) { console.warn('Error during iframe print (cliente normal):', e) }
+          setTimeout(() => { try { document.body.removeChild(iframe) } catch (e) {} }, 800)
+        }
+
+        const tryPrint = () => {
+          try {
+            const imgs = doc.images
+            if (imgs && imgs.length > 0) {
+              let loaded = 0
+              for (let i = 0; i < imgs.length; i++) {
+                const img = imgs[i] as HTMLImageElement
+                if (img.complete) {
+                  loaded++
+                } else {
+                  img.addEventListener('load', () => { loaded++; if (loaded === imgs.length) printWhenReady() })
+                  img.addEventListener('error', () => { loaded++; if (loaded === imgs.length) printWhenReady() })
+                }
               }
+              if (loaded === imgs.length) printWhenReady()
+            } else {
+              printWhenReady()
             }
-            if (loaded === imgs.length) printWhenReady()
-          } else {
-            printWhenReady()
+          } catch (e) {
+            try {
+              win.addEventListener('load', printWhenReady)
+            } catch (e) {}
+            setTimeout(printWhenReady, 1000)
+          }
+        }
+
+        try {
+          if (doc.readyState === 'complete') tryPrint()
+          else {
+            win.addEventListener('load', tryPrint)
+            setTimeout(tryPrint, 1500)
           }
         } catch (e) {
-          try {
-            w.addEventListener('load', printWhenReady)
-          } catch (e) {}
-          setTimeout(printWhenReady, 1000)
+          setTimeout(tryPrint, 800)
         }
       }
-
-      try {
-        if (w.document.readyState === 'complete') {
-          tryPrint()
-        } else {
-          w.addEventListener('load', tryPrint)
-          setTimeout(tryPrint, 1500)
-        }
-      } catch (e) {
-        setTimeout(tryPrint, 800)
-      }
+    } catch (e) {
+      console.warn('Direct print (cliente normal) failed, falling back to new window', e)
+      const w = window.open('', '_blank')
+      if (w) { w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try { w.print(); w.close() } catch (e) {} }, 800) }
     }
     const afterFinish = async () => {
       if (printingMode === 'factura') {

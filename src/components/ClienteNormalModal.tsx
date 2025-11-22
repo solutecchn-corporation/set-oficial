@@ -56,7 +56,21 @@ export default function ClienteNormalModal({ open, onClose, clienteTipo, cliente
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
           <ClienteSearchModal open={clienteSearchOpen} onClose={() => setClienteSearchOpen(false)} onSelect={(c: any) => {
             // llenar campos con cliente seleccionado
-            // caller debe proveer setters en onSelect
+            try {
+              if (c && typeof c === 'object') {
+                const rtn = c.rtn || ''
+                const nombre = c.nombre || ''
+                const telefono = c.telefono || ''
+                const correo = c.correo_electronico || ''
+                const exo = Boolean((c as any).exonerado)
+                try { onRTNChange(String(rtn || '')) } catch (e) {}
+                try { onNombreChange(String(nombre || '')) } catch (e) {}
+                try { onTelefonoChange(String(telefono || '')) } catch (e) {}
+                try { onCorreoChange(String(correo || '')) } catch (e) {}
+                try { onExoneradoChange(Boolean(exo)) } catch (e) {}
+              }
+            } catch (e) {}
+            setClienteSearchOpen(false)
           }} />
           <button onClick={onCancel} className="btn-opaque" style={{ background: 'transparent', color: '#111' }}>Cancelar</button>
           <button onClick={onOpenCreateCliente} className="btn-opaque" style={{ background: 'transparent', color: '#0b5cff' }}>Crear cliente</button>
