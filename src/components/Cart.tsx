@@ -51,9 +51,9 @@ export default function Cart({ carrito, actualizarCantidad, eliminarDelCarrito, 
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a', fontWeight: 500 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div>ISV ({(taxRate*100).toFixed(2)}%): <strong>L{(Number(perItemTaxes.reduce((s, it) => s + (it.isv || 0), 0))).toFixed(2)}</strong></div>
+              <div>ISV ({(taxRate*100)}%): <strong>L{(Number(perItemTaxes.reduce((s, it) => s + (it.isv || 0), 0))).toFixed(2)}</strong></div>
               <div>Impuesto 18%: <strong>L{(Number(perItemTaxes.reduce((s, it) => s + (it.imp18 || 0), 0))).toFixed(2)}</strong></div>
-              <div>Impuesto turístico ({(taxTouristRate*100).toFixed(2)}%): <strong>L{(Number(perItemTaxes.reduce((s, it) => s + (it.tur || 0), 0))).toFixed(2)}</strong></div>
+              <div>Impuesto turístico ({(taxTouristRate*100)}%): <strong>L{(Number(perItemTaxes.reduce((s, it) => s + (it.tur || 0), 0))).toFixed(2)}</strong></div>
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.25rem', fontWeight: 700, marginTop: 8, color: '#1e293b' }}>
