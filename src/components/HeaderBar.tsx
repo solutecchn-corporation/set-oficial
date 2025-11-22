@@ -71,9 +71,7 @@ export default function HeaderBar({ userName, userRole, userId, caiInfo, onOpenD
       </div>
       <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', pointerEvents: 'none' }}>
         <div style={{ fontSize: '0.95rem', color: '#e2e8f0', fontWeight: 500 }}>{userName ? `${userName}` : ''}</div>
-        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{userRole ? `${userRole}` : ''}</div>
-        {userId != null && <div style={{ fontSize: '0.75rem', color: '#cbd5e1', marginTop: 2 }}>ID: {String(userId)}</div>}
-        {/* CAI moved to DatosFacturaModal; header no longer shows detailed CAI */}
+    {/* CAI moved to DatosFacturaModal; header no longer shows detailed CAI */}
       </div>
 
       <div style={{ position: 'relative' }} ref={ref}>
