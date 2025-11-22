@@ -33,6 +33,7 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
   const [referencia, setReferencia] = useState<string>('')
   const [usdAmount, setUsdAmount] = useState<number>(0)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [loadingGenerating, setLoadingGenerating] = useState<boolean>(false)
 
   useEffect(() => {
     if (!open) {
@@ -46,6 +47,7 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
       setAutorizador('')
       setReferencia('')
       setConfirmDeleteId(null)
+      setLoadingGenerating(false)
     }
   }, [open])
 
@@ -89,13 +91,24 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
   const currency = (v: number) => new Intl.NumberFormat('es-HN', { style: 'currency', currency: 'HNL' }).format(v).replace('HNL', 'L')
 
   const handleConfirm = () => {
-    const parts: string[] = []
-    if (efectivoSum > 0) parts.push(`efectivo:(${efectivoSum.toFixed(2)})`)
-    if (tarjetaSum > 0) parts.push(`tarjeta:(${tarjetaSum.toFixed(2)})`)
-    if (transferenciaSum > 0) parts.push(`transferencia:(${transferenciaSum.toFixed(2)})`)
-    const tipoPagoString = parts.join(',')
-    onConfirm({ efectivo: efectivoSum, tarjeta: tarjetaSum, transferencia: transferenciaSum, totalPaid, tipoPagoString, pagos })
-    onClose()
+    ;(async () => {
+      const parts: string[] = []
+      if (efectivoSum > 0) parts.push(`efectivo:(${efectivoSum.toFixed(2)})`)
+      if (tarjetaSum > 0) parts.push(`tarjeta:(${tarjetaSum.toFixed(2)})`)
+      if (transferenciaSum > 0) parts.push(`transferencia:(${transferenciaSum.toFixed(2)})`)
+      const tipoPagoString = parts.join(',')
+      try {
+        setLoadingGenerating(true)
+        // mostrar pantalla de carga 1.5s antes de continuar
+        await new Promise(res => setTimeout(res, 1500))
+        await onConfirm({ efectivo: efectivoSum, tarjeta: tarjetaSum, transferencia: transferenciaSum, totalPaid, tipoPagoString, pagos })
+      } catch (e) {
+        console.warn('Error en handleConfirm:', e)
+      } finally {
+        try { setLoadingGenerating(false) } catch (e) {}
+        try { onClose() } catch (e) {}
+      }
+    })()
   }
 
   if (!open) return null
@@ -322,6 +335,21 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
                 <button onClick={() => setConfirmDeleteId(null)} className="btn-opaque" style={{ background: 'transparent', padding: '6px 10px' }}>Cancelar</button>
                 <button onClick={() => { if (confirmDeleteId) { eliminarPago(confirmDeleteId); setConfirmDeleteId(null) } }} className="btn-opaque" style={{ background: '#ef4444', color: 'white', padding: '6px 10px' }}>Eliminar</button>
               </div>
+            </div>
+          </div>
+        )}
+        {loadingGenerating && (
+          <div role="status" aria-live="polite" style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 12500, background: 'rgba(2,6,23,0.6)' }}>
+            <div style={{ background: 'rgba(255,255,255,0.98)', padding: 18, borderRadius: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, boxShadow: '0 10px 30px rgba(0,0,0,0.25)' }}>
+              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <g transform="translate(0,0)">
+                  <circle cx="12" cy="12" r="10" stroke="#e6edf3" strokeWidth="3" fill="none" />
+                  <path d="M22 12a10 10 0 0 1-10 10" stroke="#0ea5a4" strokeWidth="3" strokeLinecap="round">
+                    <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="1s" repeatCount="indefinite" />
+                  </path>
+                </g>
+              </svg>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>Generando factura</div>
             </div>
           </div>
         )}
