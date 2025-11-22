@@ -453,7 +453,7 @@ ${w?w+" "+x+" al "+w+" "+b:x+" al "+b}</p>
 
 <div class="line"></div>
 
-<p class="bold">TOTAL FACTURA:
+<p class="bold">TOTAL FACTURA :
    <span class="right bold">L ${X.toFixed(2)}</span>
 </p>
 
