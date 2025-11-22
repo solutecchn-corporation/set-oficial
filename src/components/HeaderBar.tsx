@@ -59,8 +59,9 @@ export default function HeaderBar({ userName, userRole, userId, caiInfo, onOpenD
       </div>
       <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', pointerEvents: 'none' }}>
         <div style={{ fontSize: '0.95rem', color: '#e2e8f0', fontWeight: 500 }}>{userName ? `${userName}` : ''}</div>
-       
-       
+        <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{userRole ? `${userRole}` : ''}</div>
+        {userId != null && <div style={{ fontSize: '0.75rem', color: '#cbd5e1', marginTop: 2 }}>ID: {String(userId)}</div>}
+        {/* CAI moved to DatosFacturaModal; header no longer shows detailed CAI */}
       </div>
 
       <div style={{ position: 'relative' }} ref={ref}>
@@ -76,16 +77,15 @@ export default function HeaderBar({ userName, userRole, userId, caiInfo, onOpenD
 
         {menuOpen && (
           <div style={{ position: 'absolute', right: 0, marginTop: 8, background: 'white', color: '#0b1724', borderRadius: 8, boxShadow: '0 8px 24px rgba(2,6,23,0.16)', minWidth: 220, zIndex: 60, overflow: 'hidden' }}>
+            <button onClick={() => { setMenuOpen(false); onLogout() }} className="btn-opaque" style={{ width: '100%', background: 'transparent', color: '#0b1724', padding: '10px 12px', textAlign: 'left' }}>Cerrar Sesión</button>
             <button onClick={() => { setMenuOpen(false); onOpenDatosFactura && onOpenDatosFactura() }} className="btn-opaque" style={{ width: '100%', background: 'transparent', color: '#0b1724', padding: '10px 12px', textAlign: 'left' }}>Datos de factura</button>
-            <button onClick={() => { setMenuOpen(false); onOpenCajaConfig && onOpenCajaConfig() }} className="btn-opaque" style={{ width: '100%', background: 'transparent', color: '#0b1724', padding: '10px 12px', textAlign: 'left' }}>Configuración de caja</button>
             <button onClick={() => { setMenuOpen(false); onNavigate('DevolucionCaja') }} className="btn-opaque" style={{ width: '100%', background: 'transparent', color: '#0b1724', padding: '10px 12px', textAlign: 'left' }}>Devolución de caja</button>
             <button onClick={() => { setMenuOpen(false); onNavigate('IngresoEfectivo') }} className="btn-opaque" style={{ width: '100%', background: 'transparent', color: '#0b1724', padding: '10px 12px', textAlign: 'left' }}>Ingreso de efectivo</button>
             <button onClick={() => { setMenuOpen(false); onNavigate('CotizacionesGuardadas') }} className="btn-opaque" style={{ width: '100%', background: 'transparent', color: '#0b1724', padding: '10px 12px', textAlign: 'left' }}>Cotizaciones guardadas</button>
             <button onClick={() => { setMenuOpen(false); onNavigate('PedidosEnLinea') }} className="btn-opaque" style={{ width: '100%', background: 'transparent', color: '#0b1724', padding: '10px 12px', textAlign: 'left' }}>Pedidos en línea</button>
             <button onClick={() => { setMenuOpen(false); onNavigate('CorteCajaParcial') }} className="btn-opaque" style={{ width: '100%', background: 'transparent', color: '#0b1724', padding: '10px 12px', textAlign: 'left' }}>Corte de caja parcial</button>
             <button onClick={() => { setMenuOpen(false); onNavigate('CorteCajaTotal') }} className="btn-opaque" style={{ width: '100%', background: 'transparent', color: '#0b1724', padding: '10px 12px', textAlign: 'left' }}>Corte de caja total</button>
-            <div style={{ height: 8, background: '#f1f5f9' }} />
-            <button onClick={() => { setMenuOpen(false); onLogout() }} className="btn-opaque" style={{ width: '100%', background: 'transparent', color: '#b91c1c', padding: '10px 12px', textAlign: 'left', fontWeight: 600 }}>Cerrar Sesión</button>
+            <button onClick={() => { setMenuOpen(false); onOpenCajaConfig && onOpenCajaConfig() }} className="btn-opaque" style={{ width: '100%', background: 'transparent', color: '#0b1724', padding: '10px 12px', textAlign: 'left' }}>Configuración de caja</button>
           </div>
         )}
       </div>
