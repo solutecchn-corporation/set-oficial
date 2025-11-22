@@ -257,7 +257,7 @@ ${identificador ? (identificador + ' ' + rangoAutorizadoDe + ' al ' + identifica
 
 <div class="line"></div>
 
-<p class="bold">TOTAL FACTURA:
+<p class="bold">TOTAL FACTURA :
    <span class="right bold">L ${ft.toFixed(2)}</span>
 </p>
 
