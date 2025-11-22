@@ -20,6 +20,7 @@ import FacturarSelectorModal from '../components/FacturarSelectorModal'
 import ClienteNormalModal from '../components/ClienteNormalModal'
 import CreateClienteModal from '../components/CreateClienteModal'
 import { generateFacturaHTML } from '../lib/generateFacturaHTML'
+import generateFacturaHTMLCinta from '../lib/generedordefacturahtmlcinta'
 
 type Producto = {
   id: string;
@@ -188,6 +189,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   const [paymentDone, setPaymentDone] = useState(false)
   const [paymentInfo, setPaymentInfo] = useState<any | null>(null)
   const [invoiceAfterPayment, setInvoiceAfterPayment] = useState(false)
+  const [printFormat, setPrintFormat] = useState<'carta' | 'cinta'>('carta')
 
   // Autocomplete RTN -> nombre: intenta traer nombre desde `clientenatural` o `clientejuridico` según `clienteTipo`
   const handleRTNChange = async (val: string) => {
@@ -403,7 +405,8 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
 
   // finalize factura: mark cotizacion, insert venta, print
   const finalizeFacturaForCliente = async (cliente: string, rtn: string, paymentPayload: any) => {
-    const html = await generateFacturaHTML({ cliente, rtn }, printingMode, {
+    const generator = (printFormat === 'cinta') ? generateFacturaHTMLCinta : generateFacturaHTML
+    const html = await generator({ cliente, rtn }, printingMode, {
       carrito,
       subtotal: subtotalCalc(),
       isvTotal,
@@ -1407,6 +1410,8 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
         onLogout={onLogout}
         onNavigate={(v) => setView(v)}
         onOpenDatosFactura={() => setDatosFacturaOpen(true)}
+        onPrintFormatChange={(fmt) => setPrintFormat(fmt)}
+        printFormat={printFormat}
       />
 
       <div style={{ padding: 16, maxWidth: 1600, margin: '0 auto' }}>

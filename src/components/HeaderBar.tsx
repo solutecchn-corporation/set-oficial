@@ -8,9 +8,11 @@ type Props = {
   onOpenDatosFactura?: () => void
   onLogout: () => void
   onNavigate: (view: string | null) => void
+  onPrintFormatChange?: (fmt: 'carta' | 'cinta') => void
+  printFormat?: 'carta' | 'cinta'
 }
 
-export default function HeaderBar({ userName, userRole, userId, caiInfo, onOpenDatosFactura, onLogout, onNavigate }: Props) {
+export default function HeaderBar({ userName, userRole, userId, caiInfo, onOpenDatosFactura, onLogout, onNavigate, onPrintFormatChange, printFormat }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
@@ -35,6 +37,13 @@ export default function HeaderBar({ userName, userRole, userId, caiInfo, onOpenD
       </div>
 
       <div style={{ position: 'relative' }} ref={ref}>
+        <div style={{ position: 'absolute', right: 120, top: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ color: '#e2e8f0', fontSize: 12 }}>Impresión</label>
+          <div style={{ display: 'flex', background: '#0b1724', padding: 4, borderRadius: 20 }}>
+            <button onClick={() => { onPrintFormatChange && onPrintFormatChange('carta') }} className={`btn-opaque`} style={{ padding: '6px 8px', background: (printFormat === 'carta') ? '#0ea5e9' : 'transparent', color: '#e2e8f0', borderRadius: 12 }}>Carta</button>
+            <button onClick={() => { onPrintFormatChange && onPrintFormatChange('cinta') }} className={`btn-opaque`} style={{ padding: '6px 8px', background: (printFormat === 'cinta') ? '#0ea5e9' : 'transparent', color: '#e2e8f0', borderRadius: 12 }}>Cinta</button>
+          </div>
+        </div>
         <button
           onClick={() => setMenuOpen(v => !v)}
           aria-expanded={menuOpen}
