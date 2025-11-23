@@ -71,6 +71,25 @@ export default function Login({ onLogin }: LoginProps) {
         } catch (e) {
           console.debug('Login: error fetching cai for cajero', e)
         }
+        // Additionally, try to fetch and store ncInfo (nota de crédito info) for cajero
+        try {
+          if (found.role === 'cajero') {
+            const { data: ncRows, error: ncErr } = await supabase
+              .from('ncredito')
+              .select('id, cai, identificador, rango_de, rango_hasta, fecha_vencimiento, secuencia_actual, caja, cajero, usuario_id')
+              .eq('cajero', found.username)
+              .order('id', { ascending: false })
+              .limit(1)
+            if (!ncErr && Array.isArray(ncRows) && ncRows.length > 0) {
+              try { localStorage.setItem('ncInfo', JSON.stringify(ncRows[0])) } catch (e) {}
+              try { console.debug('Login: stored localStorage.ncInfo =', ncRows[0]) } catch (e) {}
+            } else {
+              try { localStorage.removeItem('ncInfo') } catch (e) {}
+            }
+          }
+        } catch (e) {
+          console.debug('Login: error fetching ncredito info for cajero', e)
+        }
         setMessage('Inicio de sesión correcto')
         if (typeof onLogin === 'function') onLogin()
       } else {

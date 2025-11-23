@@ -24,6 +24,7 @@ import CotizacionModal from '../components/CotizacionModal'
 import { generateFacturaHTML } from '../lib/generateFacturaHTML'
 import generateFacturaHTMLCinta from '../lib/generedordefacturahtmlcinta'
 import generateCotizacionHTML from '../lib/cotizaconhtmlimp'
+import { hondurasNowISO } from '../lib/useHondurasTime'
 
 type Producto = {
   id: string;
@@ -850,7 +851,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
         // ignore
       }
 
-      const now = new Date().toISOString()
+      const now = hondurasNowISO()
       const registroRows = detalles.map((d: any) => ({
         producto_id: d.producto_id,
         cantidad: d.cantidad,
@@ -1357,6 +1358,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
   const [userRole, setUserRole] = useState<string | null>(null)
   const [userIdState, setUserIdState] = useState<number | string | null>(null)
   const [caiInfoState, setCaiInfoState] = useState<any | null>(null)
+  const [ncInfoState, setNcInfoState] = useState<any | null>(null)
   const [datosFacturaOpen, setDatosFacturaOpen] = useState(false)
   const [imageUrls, setImageUrls] = useState<Record<string, string | null>>({})
 
@@ -1390,6 +1392,38 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
       }
     } catch (e) {
       console.debug('refreshCaiInfo: unexpected error', e)
+    }
+  }
+
+  const refreshNcInfo = async () => {
+    try {
+      let ncFetched: any = null
+      try {
+        const raw = localStorage.getItem('user')
+        const parsed = raw ? JSON.parse(raw) : null
+        let extractedId: any = userIdState ?? (parsed && (parsed.id || parsed.user?.id || parsed.sub || parsed.user_id) ? (parsed.id || parsed.user?.id || parsed.sub || parsed.user_id) : null)
+        const userNameLocal = userName ?? (parsed && (parsed.username || parsed.user?.username || parsed.name || parsed.user?.name) ? (parsed.username || parsed.user?.username || parsed.name || parsed.user?.name) : null)
+        const userIdQuery: any = (extractedId != null && typeof extractedId === 'string' && /^\d+$/.test(extractedId)) ? Number(extractedId) : extractedId
+        if (userIdQuery != null) {
+          try {
+            const { data: byUser, error: byUserErr } = await supabase.from('ncredito').select('id,cai,identificador,rango_de,rango_hasta,fecha_vencimiento,secuencia_actual,caja,cajero,usuario_id').eq('usuario_id', userIdQuery).order('id', { ascending: false }).limit(1)
+            if (!byUserErr && Array.isArray(byUser) && byUser.length > 0) ncFetched = byUser[0]
+          } catch (e) { console.debug('refreshNcInfo: lookup by usuario_id failed:', e) }
+        }
+        if (!ncFetched && userNameLocal) {
+          try {
+            const { data: byName, error: byNameErr } = await supabase.from('ncredito').select('id,cai,identificador,rango_de,rango_hasta,fecha_vencimiento,secuencia_actual,caja,cajero,usuario_id').eq('cajero', userNameLocal).order('id', { ascending: false }).limit(1)
+            if (!byNameErr && Array.isArray(byName) && byName.length > 0) ncFetched = byName[0]
+          } catch (e) { console.debug('refreshNcInfo: lookup by cajero failed:', e) }
+        }
+      } catch (e) { console.debug('refreshNcInfo: error building lookup params', e) }
+      if (ncFetched) {
+        setNcInfoState(ncFetched)
+        try { localStorage.setItem('ncInfo', JSON.stringify(ncFetched)) } catch (e) {}
+        console.debug('refreshNcInfo: updated ncInfoState', ncFetched)
+      }
+    } catch (e) {
+      console.debug('refreshNcInfo: unexpected error', e)
     }
   }
 
@@ -1454,6 +1488,50 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
           }
         } catch (e) {
           console.debug('PV: error parsing localStorage.caiInfo:', e)
+        }
+        // try to read nc info stored at login
+        try {
+          const rawNc = localStorage.getItem('ncInfo')
+          if (rawNc) {
+            const parsedNc = JSON.parse(rawNc)
+            setNcInfoState(parsedNc)
+            console.debug('PV: loaded ncInfo from localStorage:', parsedNc);
+            (async () => {
+              try {
+                const hasAll = parsedNc && (parsedNc.rango_de !== undefined && parsedNc.rango_hasta !== undefined && parsedNc.fecha_vencimiento !== undefined && parsedNc.secuencia_actual !== undefined)
+                if (!hasAll) {
+                  const userNameLocal = u && (u.username || u.user?.username || u.name || u.user?.name) ? (u.username || u.user?.username || u.name || u.user?.name) : null
+                  const userIdLocal: any = extractedId && (typeof extractedId === 'string' && /^\d+$/.test(extractedId)) ? Number(extractedId) : extractedId
+                  let fetched: any = null
+                  try {
+                    if (userIdLocal != null) {
+                      const { data: byUser, error: byUserErr } = await supabase.from('ncredito').select('id,cai,identificador,rango_de,rango_hasta,fecha_vencimiento,secuencia_actual,caja,cajero,usuario_id').eq('usuario_id', userIdLocal).order('id', { ascending: false }).limit(1)
+                      if (!byUserErr && Array.isArray(byUser) && byUser.length > 0) fetched = byUser[0]
+                    }
+                  } catch (e) {
+                    console.debug('PV: refetch ncInfo by usuario_id failed (column may be missing):', e)
+                  }
+                  if (!fetched && userNameLocal) {
+                    try {
+                      const { data: byName, error: byNameErr } = await supabase.from('ncredito').select('id,cai,identificador,rango_de,rango_hasta,fecha_vencimiento,secuencia_actual,caja,cajero,usuario_id').eq('cajero', userNameLocal).order('id', { ascending: false }).limit(1)
+                      if (!byNameErr && Array.isArray(byName) && byName.length > 0) fetched = byName[0]
+                    } catch (e) {
+                      console.debug('PV: refetch ncInfo by cajero failed:', e)
+                    }
+                  }
+                  if (fetched) {
+                    setNcInfoState(fetched)
+                    try { localStorage.setItem('ncInfo', JSON.stringify(fetched)) } catch (e) {}
+                    console.debug('PV: refreshed ncInfo from Supabase:', fetched)
+                  }
+                }
+              } catch (e) {
+                console.debug('PV: error trying to refresh ncInfo:', e)
+              }
+            })()
+          }
+        } catch (e) {
+          console.debug('PV: error parsing localStorage.ncInfo:', e)
         }
       }
     } catch (e) {

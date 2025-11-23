@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import supabase from '../../lib/supabaseClient'
+import { hondurasNowISO } from '../../lib/useHondurasTime'
 
 type Producto = { id: string; nombre?: string; sku?: string }
 type Proveedor = { id: number | string; nombre?: string }
@@ -219,7 +220,7 @@ function DevolucionCreateModal({ onClose }: { onClose: () => void }) {
             usuarioText = u.username ? `${u.username}${u.role ? ` (${u.role})` : ''}` : String(u)
           }
         } catch (e) { }
-        const now = new Date().toISOString()
+        const now = hondurasNowISO()
         const registroRows = items.map(it => ({ producto_id: it.producto_id, cantidad: it.cantidad, tipo_de_movimiento: 'SALIDA', referencia: referenciaText, usuario: usuarioText, fecha_salida: now }))
         const regRes = await supabase.from('registro_de_inventario').insert(registroRows)
         if (regRes.error) {

@@ -11,6 +11,7 @@ import UsuariosCajeros from './UsuariosCajeros'
 import CAI from './adminViews/CAI';
 import Facturas from './adminViews/Facturas';
 import HistorialFacturas from './adminViews/HistorialFacturas';
+import NotasCreditoView from './adminViews/NotasCredito';
 import InventarioTable from './adminViews/InventarioTable'
 import Precios from './adminViews/Precios'
 import PreciosHistorico from './adminViews/PreciosHistorico'
@@ -66,6 +67,7 @@ const VIEW_COMPONENTS: Record<string, React.FC<any>> = {
   libro_diario: LibroDiario,
   auditoria: Auditoria,
   impuestos: Impuestos,
+  notas_credito: NotasCreditoView,
   // Para los que solo tienen una sub-opción, podemos mapear el parent-id al componente por defecto si es necesario
   // o confiar en el placeholder si el subActive no está definido.
 };
