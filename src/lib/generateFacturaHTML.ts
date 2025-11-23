@@ -174,206 +174,45 @@ export async function generateFacturaHTML(
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<title>Factura Detallada</title>
 	<style>
-		/* === 1. Estilos Base y Reset de Impresión === */
-		@page {
-			size: letter;
-			margin: 0.5in; /* Reducido a 0.5in para mejor uso del espacio */
-		}
+		@page { size: letter; margin: 0.5in; }
+		* { letter-spacing: 0 !important; word-spacing: 0 !important; margin: 0; padding: 0; line-height: 1.2 !important; box-sizing: border-box; }
+		body { font-family: 'Arial', sans-serif; font-size: 10px; color: #000; margin: 0; padding: 0; }
+		.factura-container { width: 100%; max-width: 8.5in; margin: 0 auto; padding: 0.25in; }
+		.divider { border: none; border-top: 1px solid #ddd; margin: 8px 0; }
+		.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 12px; }
+		.header img { width: 140px; height: auto; object-fit: contain; margin-right: 12px; }
+		.header-title { font-size: 28px; color: #0f172a; text-align: right; flex-grow: 1; font-weight: 700 !important; }
+		.info-section h3, .info-section p { font-size: 11px; margin-bottom: 3px; }
 
-		* {
-			/* Mantener la configuración de negrita y espaciado ajustado para factura */
-			font-weight: bold !important;
-			letter-spacing: 0 !important;
-			word-spacing: 0 !important;
-			margin: 0;
-			padding: 0;
-			line-height: 1.2 !important; /* Ligeramente aumentado para legibilidad */
-			box-sizing: border-box;
-		}
+		/* Tabla: diseño moderno para impresión (igual que cotización) */
+		.tabla { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; font-size: 10px; box-shadow: 0 2px 6px rgba(2,6,23,0.06); border-radius: 6px; overflow: hidden; }
+		.tabla thead tr { background: linear-gradient(180deg,#0f172a,#0b1220); color: #fff; }
+		.tabla th { padding: 10px 8px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700 !important; border-bottom: 1px solid rgba(255,255,255,0.08); }
+		.tabla td { padding: 10px 8px; font-size: 10px; vertical-align: middle; background: #fff; font-weight: 400 !important; border-bottom: 1px solid #eef2f7; }
+		.tabla tbody tr:nth-child(even) td { background: #f8fafc; }
+		.tabla td:nth-child(2), .tabla td:nth-child(3), .tabla td:nth-child(4) { text-align: right; }
+		.tabla td:first-child { text-align: left; }
+		.tabla tfoot td { font-weight: 700 !important; }
 
-		body {
-			font-family: 'Arial', sans-serif;
-			font-size: 10px;
-			color: #000;
-			margin: 0;
-			padding: 0;
-		}
+		.totals-section { margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 0; }
+		.totals-section span.label { text-align: left; padding-left: 2px; font-weight: 600 !important; }
+		.totals-section span.value { text-align: right; padding-right: 2px; font-weight: 700 !important; }
+		.total-final { font-size: 11px; margin-top: 6px; border-top: 1px solid #e6edf3; padding-top: 6px; font-weight: 800 !important; }
+		.footer-info { text-align: center; margin-top: 12px; font-size: 10px; color: #374151; }
+		.letras { font-size: 11px; margin: 6px 0; text-align: center; }
+		.firma-section { margin-top: 16px; display: flex; justify-content: space-around; text-align: center; }
+		.copias-info { text-align: center; margin-top: 8px; }
+		.final-message { font-size: 10px; text-align: center; margin-top: 10px; color: #374151; }
 
-		/* === 2. Estructura Principal === */
-		.factura-container {
-			width: 100%;
-			max-width: 8.5in;
-			margin: 0 auto;
-			padding: 0.25in; /* Espaciado interno general */
-		}
-
-		.divider {
-			border: none;
-			border-top: 1px solid #000;
-			margin: 5px 0;
-		}
-
-		/* === 3. Encabezado de Factura === */
-		.header {
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			margin-bottom: 10px;
-		}
-
-		.header img {
-			width: 200px; /* Tamaño ajustado para armonía */
-			height: auto;
-			object-fit: contain;
-			margin-right: 20px;
-		}
-
-		.header-title {
-			font-size: 35px; /* Reducido ligeramente para balance */
-			color: #0066CC;
-			text-align: right;
-			flex-grow: 1;
-		}
-
-		/* === 4. Secciones de Información === */
-		.info-section h3, .info-section p {
-			font-size: 11px;
-			margin-bottom: 2px;
-		}
-
-		.info-dates {
-			text-align: right;
-			margin-bottom: 5px;
-		}
-		
-		.info-dates p {
-			font-size: 10px;
-			margin: 1px 0;
-		}
-
-		/* === 5. Tabla de Productos === */
-		.tabla {
-			width: 100%;
-			border-collapse: collapse;
-			margin-top: 8px;
-			font-size: 10px;
-		}
-
-		.tabla th, .tabla td {
-			border: 1px solid #000;
-			padding: 4px 6px; /* Aumentado para mejor legibilidad */
-			text-align: left;
-		}
-
-		.tabla th {
-			background-color: #555; /* Oscurecido a un gris más formal */
-			color: white;
-			text-transform: uppercase;
-		}
-
-		.tabla td:nth-child(2), .tabla td:nth-child(3), .tabla td:nth-child(4) {
-			text-align: right; /* Alineación de números */
-		}
-
-		/* === 6. Totales y Pagos === */
-		.totals-section {
-			margin-top: 5px;
-			display: grid;
-			grid-template-columns: 1fr 1fr; /* Para asegurar alineación de etiquetas y valores */
-			gap: 2px 0;
-		}
-
-		.totals-section p {
-			display: contents; /* Permite que el span .right se alinee al final de la columna */
-		}
-
-		.totals-section span.label {
-			text-align: left;
-			padding-left: 2px;
-		}
-
-		.totals-section span.value {
-			text-align: right;
-			padding-right: 2px;
-		}
-		
-		.total-final {
-			font-size: 11px;
-			margin-top: 5px;
-			border-top: 1px solid #000;
-			padding-top: 3px;
-		}
-
-		/* === 7. Pie de Factura === */
-		.footer-info {
-			text-align: center;
-			margin-top: 10px;
-			font-size: 10px;
-		}
-		
-		.letras {
-			font-size: 11px;
-			margin: 5px 0;
-			text-align: center;
-		}
-
-		.firma-section {
-			margin-top: 15px;
-			display: flex;
-			justify-content: space-around;
-			text-align: center;
-		}
-
-		.copias-info {
-			text-align: center;
-			margin-top: 8px;
-		}
-
-		.final-message {
-			font-size: 10px;
-			text-align: center;
-			margin-top: 10px;
-		}
-		
-		/* === 8. Media Print Overrides (Mejorado) === */
 		@media print {
-			.tabla th {
-				/* Asegurar colores de encabezado de tabla en la impresión */
-				background-color: #555 !important;
-				color: white !important;
-				-webkit-print-color-adjust: exact;
-				print-color-adjust: exact;
-			}
-			.factura-container {
-				box-shadow: none;
-				border-radius: 0;
-			}
-			/* Se puede añadir más ajustes si la impresión recorta elementos */
+			.factura-container { box-shadow: none; border-radius: 0; }
+			.tabla thead tr { background: #0f172a !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+			.tabla th, .tabla td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 		}
 
-			/* Forzar que navegadores impriman colores de fondo y estilos exactos */
-			html, body, .factura-container, .header, .header-title, .header-title-container, .tabla, .tabla th, .totals-section, .total-final, .footer-info {
-				-webkit-print-color-adjust: exact !important;
-				print-color-adjust: exact !important;
-				color-adjust: exact !important;
-			}
-
-			/* Reforzar en la regla de impresión para asegurar compatibilidad */
-			@media print {
-				.header-title { color: #0066CC !important; }
-				.tabla th { background-color: #555 !important; color: #fff !important; }
-				.totals-section, .total-final { background-color: transparent !important; }
-			}
-			.header-title-container {
-    text-align: right;
-}
-
-.numero-factura {
-    font-size: 24px;   /* Tamaño grande */
-    color: #000;       /* Negro */
-    margin-top: -5px;  /* Ajuste opcional para acercarlo al título */
-}
-
+		html, body, .factura-container, .header, .header-title, .header-title-container, .tabla, .tabla th, .totals-section, .total-final, .footer-info { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+		.header-title-container { text-align: right; }
+		.numero-factura { font-size: 22px; color: #0f172a; margin-top: -3px; font-weight: 700 !important; }
 	</style>
 </head>
 <body>

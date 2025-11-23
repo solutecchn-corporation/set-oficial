@@ -20,8 +20,10 @@ import CotizacionConfirmModal from '../components/CotizacionConfirmModal'
 import FacturarSelectorModal from '../components/FacturarSelectorModal'
 import ClienteNormalModal from '../components/ClienteNormalModal'
 import CreateClienteModal from '../components/CreateClienteModal'
+import CotizacionModal from '../components/CotizacionModal'
 import { generateFacturaHTML } from '../lib/generateFacturaHTML'
 import generateFacturaHTMLCinta from '../lib/generedordefacturahtmlcinta'
+import generateCotizacionHTML from '../lib/cotizaconhtmlimp'
 
 type Producto = {
   id: string;
@@ -91,6 +93,18 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
     }
     if (aplicaTur) {
       impTouristTotal += taxAmount * (turRate / combined)
+    }
+  }
+
+  const printCotizacionDirect = async (cliente: string, rtn: string | null, cotizacionNumero?: string | null) => {
+    try {
+      skipCotizacionConfirmRef.current = true
+      // Prefer the explicit cotizacionNumero passed by the caller; fallback to state
+      await finalizeFacturaForCliente(cliente, rtn, null, cotizacionNumero || cotizacionLastNumero)
+    } catch (e) {
+      console.warn('Error printing cotizacion direct:', e)
+    } finally {
+      skipCotizacionConfirmRef.current = false
     }
   }
   // total is the gross total (prices include taxes); subtotal (net) is gross minus extracted taxes
@@ -176,6 +190,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   const [cotizacionConfirmOpen, setCotizacionConfirmOpen] = useState(false)
   const [cotizacionPendingClient, setCotizacionPendingClient] = useState<{ cliente?: string; rtn?: string | null } | null>(null)
   const [cotizacionEditId, setCotizacionEditId] = useState<string | null>(null)
+  const [cotizacionLastNumero, setCotizacionLastNumero] = useState<string | null>(null)
   const [clienteNormalModalOpen, setClienteNormalModalOpen] = useState(false)
   const [clienteSearchOpen, setClienteSearchOpen] = useState(false)
   const [clienteNombre, setClienteNombre] = useState('')
@@ -187,6 +202,8 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   const [clienteCorreo, setClienteCorreo] = useState('')
   const [clienteExonerado, setClienteExonerado] = useState<boolean>(false)
   const [createClienteModalOpen, setCreateClienteModalOpen] = useState(false)
+  const [cotizacionModalOpen, setCotizacionModalOpen] = useState(false)
+  const skipCotizacionConfirmRef = useRef(false)
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [paymentDone, setPaymentDone] = useState(false)
   const [paymentInfo, setPaymentInfo] = useState<any | null>(null)
@@ -240,9 +257,9 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
 
   const openSelector = (mode: 'factura'|'cotizacion') => {
     if (mode === 'cotizacion') {
-      // iniciar flujo de cotización (la confirmación para guardar se hará al final)
+      // iniciar flujo de cotización: abrir modal único de cotización
       setPrintingMode('cotizacion')
-      setFacturarModalOpen(true)
+      setCotizacionModalOpen(true)
       return
     }
     setPrintingMode(mode)
@@ -285,6 +302,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
 
       // si estamos editando una cotización existente, actualizarla en lugar de insertar
       let cotizacionId: any = opts['cotizacion_id'] ?? cotizacionEditId
+      let numeroToReturn: string | null = null
       if (cotizacionId) {
         const updatePayload: any = {
           cliente_id: payload.cliente_id || null,
@@ -300,13 +318,41 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
           console.warn('Error actualizando cotizacion:', upErr)
           return null
         }
+        // try fetch numero_cotizacion after update
+        try {
+          const { data: fetched, error: fErr } = await supabase.from('cotizaciones').select('*').eq('id', cotizacionId).maybeSingle()
+          if (!fErr && fetched) {
+            numeroToReturn = (fetched as any).numero_cotizacion || (fetched as any)['Número'] || null
+            try { setCotizacionLastNumero(numeroToReturn) } catch (e) {}
+          }
+        } catch (e) {}
       } else {
-        const { data: insData, error: insErr } = await supabase.from('cotizaciones').insert([payload]).select('id').maybeSingle()
+        const { data: insData, error: insErr } = await supabase.from('cotizaciones').insert([payload]).select('*').maybeSingle()
         if (insErr) {
           console.warn('Error insertando cotizacion:', insErr)
           return null
         }
+        // obtener id de la inserción
         cotizacionId = (insData as any)?.id || null
+
+        // Re-consultar la fila insertada para asegurarnos de obtener el valor definitivo
+        // que la base de datos pueda haber generado (por ejemplo columna 'Número' o triggers).
+        try {
+          if (cotizacionId) {
+            const { data: fresh, error: freshErr } = await supabase.from('cotizaciones').select('*').eq('id', cotizacionId).maybeSingle()
+            if (!freshErr && fresh) {
+              numeroToReturn = (fresh as any).numero_cotizacion || (fresh as any)['Número'] || numeroCot
+            } else {
+              numeroToReturn = (insData as any)?.numero_cotizacion || (insData as any)?.['Número'] || numeroCot
+            }
+          } else {
+            numeroToReturn = (insData as any)?.numero_cotizacion || (insData as any)?.['Número'] || numeroCot
+          }
+        } catch (e) {
+          numeroToReturn = (insData as any)?.numero_cotizacion || (insData as any)?.['Número'] || numeroCot
+        }
+
+        try { setCotizacionLastNumero(numeroToReturn) } catch (e) {}
         if (!cotizacionId) return null
       }
 
@@ -340,9 +386,22 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
         // ignore
       }
       const { error: detErr } = await supabase.from('cotizaciones_detalle').insert(detalles)
-      if (detErr) console.warn('Error insertando cotizaciones_detalle:', detErr)
-      else console.debug('Cotizacion guardada id=', cotizacionId)
-      return cotizacionId
+        if (detErr) console.warn('Error insertando cotizaciones_detalle:', detErr)
+        else console.debug('Cotizacion guardada id=', cotizacionId)
+
+      // Actualizar UI inmediatamente: vaciar carrito y refrescar tabla de productos
+      try {
+        vaciarCarrito()
+      } catch (e) {
+        console.debug('Error vaciando carrito tras guardar cotizacion:', e)
+      }
+      try {
+        await refreshProducts()
+      } catch (e) {
+        console.debug('Error refrescando productos tras guardar cotizacion:', e)
+      }
+
+      return { id: cotizacionId, numero: numeroToReturn }
     } catch (e) {
       console.warn('Error guardando cotizacion:', e)
       return null
@@ -407,9 +466,18 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   }
 
   // finalize factura: mark cotizacion, insert venta, print
-  const finalizeFacturaForCliente = async (cliente: string, rtn: string, paymentPayload: any) => {
-    const generator = (printFormat === 'cinta') ? generateFacturaHTMLCinta : generateFacturaHTML
-    const html = await generator({ cliente, rtn }, printingMode, {
+  const finalizeFacturaForCliente = async (cliente: string, rtn: string | null, paymentPayload: any, cotizacionNumero?: string | null) => {
+    let generator: any = (printFormat === 'cinta') ? generateFacturaHTMLCinta : generateFacturaHTML
+    const optsForGenerator: any = { cliente, rtn }
+    if (printingMode === 'cotizacion') {
+      generator = generateCotizacionHTML
+      // prefer explicit cotizacionNumero, fallback to last saved numero from state
+      const numToUse = cotizacionNumero || cotizacionLastNumero || null
+      if (numToUse) optsForGenerator.cotizacion = numToUse
+      // also accept legacy field name
+      if ((optsForGenerator.cotizacion == null) && cotizacionLastNumero) optsForGenerator['Número'] = cotizacionLastNumero
+    }
+    const html = await generator(optsForGenerator, printingMode, {
       carrito,
       subtotal: subtotalCalc(),
       isvTotal,
@@ -554,7 +622,12 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
     }
     if (printingMode === 'cotizacion') {
       setCotizacionPendingClient({ cliente, rtn })
-      setCotizacionConfirmOpen(true)
+      if (!skipCotizacionConfirmRef.current) {
+        setCotizacionConfirmOpen(true)
+      } else {
+        setCotizacionConfirmOpen(false)
+        setCotizacionPendingClient(null)
+      }
     }
   }
 
@@ -1238,6 +1311,10 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
         if (!parsed) return
         // si la payload contiene header.id, marcar que estamos editando esa cotización
         try { setCotizacionEditId(parsed.header && parsed.header.id ? String(parsed.header.id) : null) } catch (e) {}
+        try {
+          const num = parsed.header && (parsed.header.numero_cotizacion || parsed.header['Número'] || parsed.header.numero) ? (parsed.header.numero_cotizacion || parsed.header['Número'] || parsed.header.numero) : null
+          if (num) setCotizacionLastNumero(num)
+        } catch (e) {}
         const detalles = Array.isArray(parsed.detalles) ? parsed.detalles : []
         const items: ItemCarrito[] = detalles.map((d: any) => {
           const prodMatch = productos.find(p => String(p.id) === String(d.producto_id))
@@ -1666,13 +1743,22 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
         onSave={async () => {
           setCotizacionConfirmOpen(false)
           try {
-            const savedId = await saveCotizacion(cotizacionPendingClient || {})
-            if (savedId) setCotizacionEditId(String(savedId))
+            const saved = await saveCotizacion(cotizacionPendingClient || {})
+            if (saved && saved.id) setCotizacionEditId(String(saved.id))
           } catch (e) {
             console.warn('Error guardando cotizacion desde confirm modal', e)
           }
           setCotizacionPendingClient(null)
         }}
+      />
+
+      <CotizacionModal
+        open={cotizacionModalOpen}
+        onClose={() => setCotizacionModalOpen(false)}
+        carritoLength={carrito.length}
+        subtotal={subtotalCalc()}
+        saveCotizacion={saveCotizacion}
+        finalizePrint={printCotizacionDirect}
       />
 
       <FacturarSelectorModal

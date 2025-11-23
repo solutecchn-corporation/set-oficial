@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import supabase from '../lib/supabaseClient'
+import generateCotizacionHTML from '../lib/cotizaconhtmlimp'
 
 type Cotizacion = {
   id: number;
@@ -51,7 +52,7 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
     setLoading(true)
     try {
       // seleccionar columnas relevantes
-      const { data, error } = await supabase.from('cotizaciones').select('id, cliente_id, usuario, fecha_cotizacion, numero_cotizacion, validez_dias, subtotal, impuesto, total, estado').order('fecha_cotizacion', { ascending: false })
+      const { data, error } = await supabase.from('cotizaciones').select('*').order('fecha_cotizacion', { ascending: false })
       if (error) throw error
       const baseRows = Array.isArray(data) ? data as Cotizacion[] : []
 
@@ -88,7 +89,7 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
     setSelectedId(id)
     try {
       // fetch header and detalles
-      const { data: hd, error: hErr } = await supabase.from('cotizaciones').select('id, cliente_id, usuario, fecha_cotizacion, numero_cotizacion, subtotal, impuesto, total, estado').eq('id', id).maybeSingle()
+      const { data: hd, error: hErr } = await supabase.from('cotizaciones').select('*').eq('id', id).maybeSingle()
       if (hErr) console.warn('Error cargando cabecera de cotizacion', hErr)
       setViewHeader((hd as any) || null)
 
@@ -141,6 +142,106 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
       fetchRows()
     } catch (e) {
       console.warn('Error eliminando cotizacion:', e)
+    }
+  }
+
+  const reprintRow = async (id: number) => {
+    try {
+      // fetch header
+      const { data: hd, error: hErr } = await supabase.from('cotizaciones').select('*').eq('id', id).maybeSingle()
+      if (hErr || !hd) {
+        console.warn('Error fetching cotizacion header for reprint', hErr)
+        return
+      }
+      // fetch detalles
+      const { data: detRows, error: detErr } = await supabase.from('cotizaciones_detalle').select('*').eq('cotizacion_id', id)
+      if (detErr) {
+        console.warn('Error fetching cotizacion detalles for reprint', detErr)
+        return
+      }
+
+      const carrito = Array.isArray(detRows) ? detRows.map((d: any) => ({
+        producto: { sku: d.sku || '' },
+        descripcion: d.descripcion || d.nombre || '',
+        cantidad: Number(d.cantidad || 1),
+        precio_unitario: Number(d.precio_unitario || d.precio || 0),
+        subtotal: Number(d.subtotal || 0),
+        total: Number(d.total || 0)
+      })) : []
+
+      const opts: any = {
+        cliente: (hd as any).cliente || null,
+        rtn: (hd as any).rtn || null,
+        cotizacion: (hd as any).numero_cotizacion || (hd as any)['Número'] || null,
+      }
+
+      const params: any = {
+        carrito,
+        subtotal: Number((hd as any).subtotal || 0),
+        isvTotal: Number((hd as any).isv || (hd as any).impuesto || 0),
+        imp18Total: Number((hd as any).impuesto_18 || 0),
+        impTouristTotal: Number((hd as any).impuesto_turistico || 0),
+        total: Number((hd as any).total || 0)
+      }
+
+      const html = await generateCotizacionHTML(opts, 'cotizacion', params)
+
+      // print via hidden iframe (same approach as PuntoDeVentas)
+      try {
+        const iframe = document.createElement('iframe')
+        iframe.style.position = 'fixed'
+        iframe.style.right = '0'
+        iframe.style.bottom = '0'
+        iframe.style.width = '0'
+        iframe.style.height = '0'
+        iframe.style.border = '0'
+        iframe.style.overflow = 'hidden'
+        iframe.setAttribute('aria-hidden', 'true')
+        document.body.appendChild(iframe)
+
+        const win = iframe.contentWindow
+        const doc = iframe.contentDocument || iframe.contentWindow?.document
+        if (!doc || !win) { try { document.body.removeChild(iframe) } catch (e) {} }
+        else {
+          doc.open()
+          doc.write(html)
+          doc.close()
+
+          const printWhenReady = () => {
+            try { win.focus(); win.print() } catch (e) { console.warn('Error during iframe print (reprint):', e) }
+            setTimeout(() => { try { document.body.removeChild(iframe) } catch (e) {} }, 800)
+          }
+
+          const tryPrint = () => {
+            try {
+              const imgs = doc.images
+              if (imgs && imgs.length > 0) {
+                let loaded = 0
+                for (let i = 0; i < imgs.length; i++) {
+                  const img = imgs[i] as HTMLImageElement
+                  if (img.complete) { loaded++ } else { img.addEventListener('load', () => { loaded++; if (loaded === imgs.length) printWhenReady() }); img.addEventListener('error', () => { loaded++; if (loaded === imgs.length) printWhenReady() }) }
+                }
+                if (loaded === imgs.length) printWhenReady()
+              } else { printWhenReady() }
+            } catch (e) {
+              try { win.addEventListener('load', printWhenReady) } catch (e) {}
+              setTimeout(printWhenReady, 1000)
+            }
+          }
+
+          try {
+            if (doc.readyState === 'complete') tryPrint()
+            else { win.addEventListener('load', tryPrint); setTimeout(tryPrint, 1500) }
+          } catch (e) { setTimeout(tryPrint, 800) }
+        }
+      } catch (e) {
+        console.warn('Reprint direct failed, opening new window fallback', e)
+        const w = window.open('', '_blank')
+        if (w) { w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try { w.print(); w.close() } catch (e) {} }, 800) }
+      }
+
+    } catch (e) {
+      console.warn('Error reprinting cotizacion', e)
     }
   }
 
@@ -217,14 +318,14 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
                 .filter(r => {
                   if (!searchTerm) return true
                   const s = searchTerm.toLowerCase()
-                  const num = (r.numero_cotizacion || '').toLowerCase()
+                  const num = ((r.numero_cotizacion || (r as any)['Número'] || '')).toLowerCase()
                   const client = ((r as any).cliente_nombre || '')?.toLowerCase()
                   const usuario = (r.usuario || '').toLowerCase()
                   return num.includes(s) || client.includes(s) || usuario.includes(s)
                 })
                 .map(r => (
                 <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: 8 }}>{r.numero_cotizacion || ''}</td>
+                  <td style={{ padding: 8 }}>{r.numero_cotizacion || (r as any)['Número'] || ''}</td>
                   <td style={{ padding: 8 }}>{r.fecha_cotizacion ? new Date(r.fecha_cotizacion).toLocaleString() : ''}</td>
                   <td style={{ padding: 8 }}>{r.usuario || ''}</td>
                   <td style={{ padding: 8 }}>{(r as any).cliente_nombre || ((r as any).cliente_id ? String((r as any).cliente_id) : '')}</td>
@@ -232,6 +333,7 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
                   <td style={{ padding: 8 }}>{r.estado || ''}</td>
                   <td style={{ padding: 8 }}>
                     <button onClick={() => openView(r.id)} className="btn-opaque" style={{ marginRight: 6 }}>Ver</button>
+                    <button onClick={() => reprintRow(r.id)} className="btn-opaque" style={{ marginRight: 6 }}>Reimprimir</button>
                     {String(r.estado || '').toLowerCase() === 'aceptada' ? (
                       <button className="btn-opaque" style={{ marginRight: 6, opacity: 0.6, cursor: 'not-allowed' }} disabled title="No se puede editar una cotización aceptada">Editar</button>
                     ) : (
@@ -258,7 +360,7 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
               {viewHeader && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div>
-                    <div><strong>Número:</strong> {viewHeader.numero_cotizacion}</div>
+                    <div><strong>Número:</strong> {viewHeader.numero_cotizacion || (viewHeader as any)['Número'] || ''}</div>
                     <div><strong>Fecha:</strong> {viewHeader.fecha_cotizacion ? new Date(viewHeader.fecha_cotizacion).toLocaleString() : ''}</div>
                     <div><strong>Usuario:</strong> {viewHeader.usuario}</div>
                     <div><strong>Cliente:</strong> {viewClientName ?? (viewHeader.cliente_id ? String((viewHeader as any).cliente_id) : 'C/F')}</div>
