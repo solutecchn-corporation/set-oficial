@@ -903,20 +903,87 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
     // insertar pagos relacionados (si existen en paymentPayload.pagos)
     try {
       if (paymentPayload && Array.isArray(paymentPayload.pagos) && paymentPayload.pagos.length > 0) {
-        const pagosRows = paymentPayload.pagos.map((p: any) => ({
-          venta_id: ventaId,
-          tipo: p.tipo,
-          monto: Number(p.monto || 0),
-          banco: p.banco || null,
-          tarjeta: p.tarjeta || null,
-          // store the invoice number generated for this venta for easier tracing
-          factura: facturaNum || p.factura || null,
-          autorizador: p.autorizador || null,
-          referencia: p.referencia || null,
-          meta: p.meta || null,
-          // only set created_by when usuarioId is a UUID to avoid Postgres type errors
-          created_by: (typeof usuarioId === 'string' && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(usuarioId)) ? usuarioId : null
-        }))
+        // Normalize usuarioId: if numeric-string or number -> send integer; if UUID -> keep for created_by
+        const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/
+        const isUuid = (typeof usuarioId === 'string') && uuidRegex.test(usuarioId)
+        const isNumeric = (typeof usuarioId === 'number') || (typeof usuarioId === 'string' && /^\d+$/.test(usuarioId))
+        const usuarioIdInteger = isNumeric ? Number(usuarioId) : null
+
+        // Build initial pagos rows
+        const initialPagos = paymentPayload.pagos.map((p: any) => {
+          const tipoStr = String(p.tipo || '').toLowerCase()
+          let valorMoneda: string | null = null
+          try {
+            if (tipoStr.includes('efectivo') || tipoStr === 'cash') {
+              valorMoneda = '1 = 1 lps'
+            } else if (tipoStr.includes('dolar') || tipoStr.includes('usd')) {
+              const val = Number(exchangeRate || 0)
+              valorMoneda = `1 = ${val.toFixed(2)} lps`
+            }
+          } catch (e) {
+            valorMoneda = null
+          }
+
+          return {
+            venta_id: ventaId,
+            tipo: p.tipo,
+            monto: Number(p.monto || 0),
+            banco: p.banco || null,
+            tarjeta: p.tarjeta || null,
+            factura: facturaNum || p.factura || null,
+            autorizador: p.autorizador || null,
+            referencia: p.referencia || null,
+            meta: p.meta || null,
+            created_by: isUuid ? usuarioId : null,
+            usuario_id: usuarioIdInteger,
+            usuario_nombre: (typeof userName === 'string' && userName.length > 0) ? userName : null,
+            valor_moneda: valorMoneda
+          }
+        })
+
+        // If there is change to return to the customer, adjust cash payment(s):
+        // - reduce the first cash payment by the change amount (so monto = efectivo_given - cambio)
+        // - insert an extra negative payment of tipo 'efectivo' with monto = -cambio to record the returned cash
+        try {
+          const cambio = Number(cambioVal || 0)
+          if (cambio > 0) {
+            // find first cash/efectivo payment
+            const cashIndex = initialPagos.findIndex((r: any) => {
+              const t = String(r.tipo || '').toLowerCase()
+              return t.includes('efectivo') || t === 'cash'
+            })
+
+            if (cashIndex !== -1) {
+              // subtract the cambio from the recorded monto (can't go below 0)
+              const original = Number(initialPagos[cashIndex].monto || 0)
+              const adjusted = Math.max(0, original - cambio)
+              initialPagos[cashIndex].monto = Number(adjusted.toFixed(2))
+            }
+
+            // always record a negative efectivo payment that represents cash given back
+            const cambioRow: any = {
+              venta_id: ventaId,
+              tipo: 'efectivo',
+              monto: -Number(cambio.toFixed(2)),
+              banco: null,
+              tarjeta: null,
+              factura: facturaNum || null,
+              autorizador: null,
+              referencia: 'Cambio',
+              meta: null,
+              created_by: isUuid ? usuarioId : null,
+              usuario_id: usuarioIdInteger,
+              usuario_nombre: (typeof userName === 'string' && userName.length > 0) ? userName : null,
+              valor_moneda: '1 = 1 lps'
+            }
+            initialPagos.push(cambioRow)
+          }
+        } catch (e) {
+          console.debug('Error ajustando pagos por cambio:', e)
+        }
+
+        const pagosRows = initialPagos
+
         const { data: pagosIns, error: pagosErr } = await supabase.from('pagos').insert(pagosRows).select('id')
         if (pagosErr) console.warn('Error insertando pagos en tabla pagos:', pagosErr)
         else console.debug('Pagos insertados:', pagosIns)

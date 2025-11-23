@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react'
 import useCajaSession from '../hooks/useCajaSession'
 import supabase from '../lib/supabaseClient'
 import useHondurasTime from '../lib/useHondurasTime'
+import useDevolucionesTotales from '../hooks/useDevolucionesTotales'
+import usePagosTotals from '../hooks/usePagosTotals'
+import useDataPagos from '../hooks/useDataPagos'
 
 export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
   const { session, loading: sessionLoading, startSession, refreshSession } = useCajaSession()
@@ -16,6 +19,18 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
   const [otrosEgresos, setOtrosEgresos] = useState(0) // From caja_movimientos
 
   const { hondurasNowISO } = useHondurasTime()
+  const { totals: devolucionesTotals } = useDevolucionesTotales(session?.fecha_apertura ?? null, session?.usuario ?? null)
+  const { totals: pagosTotals, loading: pagosLoading, reload: reloadPagos } = usePagosTotals(session?.fecha_apertura ?? null, session?.usuario ?? null)
+  // Mostrar agrupación por tipo (suma de monto) — usar la fecha de apertura de la sesión
+  const fechaDesdePagos = session?.fecha_apertura ?? null
+  const { data: dataPagos, loading: dataPagosLoading, error: dataPagosError, reload: reloadDataPagos } = useDataPagos(fechaDesdePagos)
+
+  // Debug: mostrar pagosTotals en consola para verificar valores
+  React.useEffect(() => {
+    try {
+      console.debug('usePagosTotals values', { pagosTotals, pagosLoading })
+    } catch (e) { }
+  }, [pagosTotals, pagosLoading])
 
   useEffect(() => {
     if (session) {
@@ -27,6 +42,8 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
     if (!session) return
     setCalculating(true)
     try {
+      // ensure pagosTotals are fresh when recalculating
+      try { if (typeof reloadPagos === 'function') await reloadPagos() } catch (e) { console.debug('Error reloading pagosTotals', e) }
       const user = session.usuario
       const since = session.fecha_apertura
 
@@ -109,37 +126,15 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
       setOtrosIngresos(totalIng)
       setOtrosEgresos(totalEgr)
 
-      // 3. Fetch Devoluciones (Expenses)
-      const { data: devs, error: dErr } = await supabase
-        .from('devoluciones_ventas')
-        .select('total, tipo_devolucion')
-        .eq('usuario', user)
-        .gte('fecha_devolucion', since)
-
-      if (dErr) console.error('Error fetching devoluciones:', dErr)
-
-      const newDevoluciones = { efectivo: 0, tarjeta: 0, transferencia: 0, dolares: 0, total: 0 }
-      if (devs) {
-        devs.forEach((d: any) => {
-          const monto = Number(d.total || 0)
-          const tipo = (d.tipo_devolucion || '').toLowerCase()
-
-          // Categorize type (assuming similar mapping or explicit types)
-          let category: 'efectivo' | 'tarjeta' | 'transferencia' | 'dolares' | null = null
-          if (tipo.includes('efectivo') || tipo === 'devolucion') category = 'efectivo' // Default 'devolucion' to cash?
-          else if (tipo.includes('tarjeta')) category = 'tarjeta'
-          else if (tipo.includes('transferencia')) category = 'transferencia'
-          else if (tipo.includes('dolar')) category = 'dolares'
-          // Fallback: if just 'devolucion' and no specific type, assume cash or handle separately?
-          // User request implies breakdown. Let's assume 'efectivo' is the main one for cash drawer.
-
-          if (category) {
-            newDevoluciones[category] += monto
-            newDevoluciones.total += monto
-          }
-        })
+      // Devoluciones ahora manejadas por el hook `useDevolucionesTotales`.
+      // Sincronizar valores devueltos por el hook (si existen) a nuestro estado local.
+      try {
+        if (devolucionesTotals) {
+          setDevoluciones(devolucionesTotals)
+        }
+      } catch (e) {
+        console.debug('Error syncing devoluciones from hook', e)
       }
-      setDevoluciones(newDevoluciones)
 
     } catch (e) {
       console.error('Error calculating totals:', e)
@@ -212,84 +207,24 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
         </div>
       </header>
 
-      {/* Main Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
-        <Card title="Monto Inicial" value={session.monto_inicial} color="#3b82f6" />
-        <Card title="Ventas Netas (Efectivo)" value={netCashSales} color="#10b981" />
-        <Card title="Otros Ingresos" value={otrosIngresos} color="#10b981" />
-        <Card title="Otros Egresos" value={otrosEgresos} color="#ef4444" />
-        <Card title="Devoluciones (Efectivo)" value={devoluciones.efectivo} color="#ef4444" />
-      </div>
-
-      {/* Detailed Breakdown Table */}
-      <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', overflow: 'hidden', marginBottom: 24 }}>
-        <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', padding: '16px 20px', borderBottom: '3px solid #0ea5e9' }}>
-          <h3 style={{ margin: 0, color: 'white', fontSize: 16, fontWeight: 700, letterSpacing: '0.5px' }}>
-            📊 Desglose por Tipo de Pago
-          </h3>
+      {/* JSON: datos agrupados de pagos por tipo (created_at >= 2025-11-21 00:00:00) */}
+      <section style={{ marginBottom: 20 }}>
+        <h3 style={{ margin: '8px 0' }}>Pagos agrupados (JSON)</h3>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <button className="btn-opaque" onClick={() => reloadDataPagos()} disabled={dataPagosLoading}>Refrescar pagos</button>
+          {dataPagosLoading ? <span style={{ color: '#64748b' }}>Cargando...</span> : null}
+          {dataPagosError ? <span style={{ color: '#ef4444' }}>Error cargando pagos</span> : null}
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-          <thead>
-            <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-              <th style={{ padding: '14px 16px', textAlign: 'left', color: '#475569', fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tipo de Pago</th>
-              <th style={{ padding: '14px 16px', textAlign: 'right', color: '#10b981', fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                  <span>↑</span>
-                  <span>Ingresos</span>
-                </div>
-              </th>
-              <th style={{ padding: '14px 16px', textAlign: 'right', color: '#f59e0b', fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                  <span>⊗</span>
-                  <span>Anulaciones</span>
-                </div>
-              </th>
-              <th style={{ padding: '14px 16px', textAlign: 'right', color: '#ef4444', fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                  <span>↓</span>
-                  <span>Devoluciones</span>
-                </div>
-              </th>
-              <th style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#1e293b' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                  <span>∑</span>
-                  <span>Neto</span>
-                </div>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <BreakdownRow label="💵 Efectivo" ing={ingresos.efectivo} anl={anulaciones.efectivo} dev={devoluciones.efectivo} />
-            <BreakdownRow label="💳 Tarjeta" ing={ingresos.tarjeta} anl={anulaciones.tarjeta} dev={devoluciones.tarjeta} />
-            <BreakdownRow label="🏦 Transferencia" ing={ingresos.transferencia} anl={anulaciones.transferencia} dev={devoluciones.transferencia} />
-            <BreakdownRow label="💵 Dólares" ing={ingresos.dolares} anl={anulaciones.dolares} dev={devoluciones.dolares} />
-            <tr style={{ borderTop: '3px solid #e2e8f0', fontWeight: 700, background: 'linear-gradient(to right, #f8fafc, #f1f5f9)' }}>
-              <td style={{ padding: '16px', fontSize: 15, color: '#1e293b', letterSpacing: '0.5px' }}>TOTALES</td>
-              <td style={{ padding: '16px', textAlign: 'right', color: '#10b981', fontSize: 15 }}>{currency(ingresos.total)}</td>
-              <td style={{ padding: '16px', textAlign: 'right', color: '#f59e0b', fontSize: 15 }}>{currency(anulaciones.total)}</td>
-              <td style={{ padding: '16px', textAlign: 'right', color: '#ef4444', fontSize: 15 }}>{currency(devoluciones.total)}</td>
-              <td style={{ padding: '16px', textAlign: 'right', fontSize: 16, color: '#1e293b', background: '#e0f2fe', borderRadius: '0 0 8px 0' }}>
-                {currency(ingresos.total - anulaciones.total - devoluciones.total)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <section style={{ background: 'white', padding: 24, borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', textAlign: 'center' }}>
-        <h3 style={{ margin: 0, color: '#475569', fontSize: 16, textTransform: 'uppercase', letterSpacing: 1 }}>Saldo Teórico en Caja (Efectivo)</h3>
-        <div style={{ fontSize: 42, fontWeight: 800, color: '#1e293b', marginTop: 8 }}>
-          {currency(saldoTeorico)}
-        </div>
-        <p style={{ color: '#94a3b8', fontSize: 13, marginTop: 4 }}>
-          (Monto Inicial + Ingresos Efectivo - Anulaciones Efectivo + Otros Ingresos) - (Otros Egresos + Devoluciones Efectivo)
-        </p>
+        <pre style={{ whiteSpace: 'pre-wrap', background: 'white', padding: 12, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+          {JSON.stringify({ fechaDesde: fechaDesdePagos, rows: dataPagos || [] }, null, 2)}
+        </pre>
       </section>
+    
     </div>
   )
 }
 
-function BreakdownRow({ label, ing, anl, dev }: { label: string, ing: number, anl: number, dev: number }) {
+function BreakdownRow({ label, ventas = 0, ing, anl, dev }: { label: string, ventas?: number, ing: number, anl: number, dev: number }) {
   const currency = (v: number) => new Intl.NumberFormat('es-HN', { style: 'currency', currency: 'HNL' }).format(v).replace('HNL', 'L')
   const net = ing - anl - dev
   return (
@@ -297,6 +232,7 @@ function BreakdownRow({ label, ing, anl, dev }: { label: string, ing: number, an
       onMouseEnter={(e) => e.currentTarget.style.background = '#fafbfc'}
       onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
       <td style={{ padding: '14px 16px', fontWeight: 600, color: '#1e293b', fontSize: 14 }}>{label}</td>
+      <td style={{ padding: '14px 16px', textAlign: 'right', color: '#0ea5e9', fontWeight: 600 }}>{currency(ventas)}</td>
       <td style={{ padding: '14px 16px', textAlign: 'right', color: '#10b981', fontWeight: 500 }}>{currency(ing)}</td>
       <td style={{ padding: '14px 16px', textAlign: 'right', color: '#f59e0b', fontWeight: 500 }}>{currency(anl)}</td>
       <td style={{ padding: '14px 16px', textAlign: 'right', color: '#ef4444', fontWeight: 500 }}>{currency(dev)}</td>
