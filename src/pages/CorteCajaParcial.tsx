@@ -8,6 +8,7 @@ import usePagosVentasAnuladas from '../hooks/usePagosVentasAnuladas'
 import useDataPagos from '../hooks/useDataPagos'
 import useCajaMovimientosTotals from '../hooks/useCajaMovimientosTotals'
 import useVentasAnuladas from '../hooks/useVentasAnuladas'
+import useDataDevoluciones from '../hooks/useDataDevoluciones'
 
 export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
   const { session, loading: sessionLoading, startSession, refreshSession } = useCajaSession()
@@ -43,6 +44,8 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
   }
 
   const { data: pagosVentasAnuladas, loading: pagosVentasAnuladasLoading, error: pagosVentasAnuladasError, reload: reloadPagosVentasAnuladas } = usePagosVentasAnuladas(fechaDesdePagos, usuarioIdForQuery, session?.usuario ?? null)
+
+  const { data: dataDevoluciones, loading: dataDevolucionesLoading, error: dataDevolucionesError, reload: reloadDevoluciones } = useDataDevoluciones(session?.usuario ?? null, usuarioIdForQuery, session?.fecha_apertura ?? null)
 
   // Debug: mostrar pagosTotals en consola para verificar valores
   React.useEffect(() => {
@@ -226,44 +229,115 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
         </div>
       </header>
 
-      {/* JSON: datos agrupados de pagos por tipo (created_at >= 2025-11-21 00:00:00) */}
-      <section style={{ marginBottom: 20 }}>
-        <h3 style={{ margin: '8px 0' }}>Pagos agrupados (JSON)</h3>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-          <button className="btn-opaque" onClick={() => reloadDataPagos()} disabled={dataPagosLoading}>Refrescar pagos</button>
-          {dataPagosLoading ? <span style={{ color: '#64748b' }}>Cargando...</span> : null}
-          {dataPagosError ? <span style={{ color: '#ef4444' }}>Error cargando pagos</span> : null}
-        </div>
-        <pre style={{ whiteSpace: 'pre-wrap', background: 'white', padding: 12, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-          {JSON.stringify({ fechaDesde: fechaDesdePagos, rows: dataPagos || [] }, null, 2)}
-        </pre>
-      </section>
-      
-      {/* JSON: movimientos de caja agrupados por tipo */}
-      <section style={{ marginBottom: 20 }}>
-        <h3 style={{ margin: '8px 0' }}>Movimientos de Caja (JSON)</h3>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-          <button className="btn-opaque" onClick={() => reloadCajaMovs()} disabled={cajaMovsLoading}>Refrescar movimientos</button>
-          {cajaMovsLoading ? <span style={{ color: '#64748b' }}>Cargando...</span> : null}
-          {cajaMovsError ? <span style={{ color: '#ef4444' }}>Error cargando movimientos</span> : null}
-        </div>
-        <pre style={{ whiteSpace: 'pre-wrap', background: 'white', padding: 12, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-          {JSON.stringify({ fechaDesde: fechaDesdePagos, usuario: session?.usuario, rows: cajaMovs || [] }, null, 2)}
-        </pre>
-      </section>
+          {/* Tabla: Corte de Caja Parcial (resumen por tipo de pago) */}
+          <section style={{ marginBottom: 20 }}>
+            <h3 style={{ margin: '8px 0' }}>Resumen Parcial - Corte de Caja</h3>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+              <button className="btn-opaque" onClick={() => { reloadDataPagos(); reloadCajaMovs(); if (typeof reloadVentasAnuladas === 'function') reloadVentasAnuladas(); if (typeof reloadDevoluciones === 'function') reloadDevoluciones(); }} disabled={calculating}>Refrescar todo</button>
+            </div>
 
-      {/* JSON: ventas anuladas (tipo_pago) */}
-      <section style={{ marginBottom: 20 }}>
-        <h3 style={{ margin: '8px 0' }}>Ventas anuladas (tipo_pago) — JSON</h3>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-          <button className="btn-opaque" onClick={() => reloadVentasAnuladas()} disabled={ventasAnuladasLoading}>Refrescar anuladas</button>
-          {ventasAnuladasLoading ? <span style={{ color: '#64748b' }}>Cargando...</span> : null}
-          {ventasAnuladasError ? <span style={{ color: '#ef4444' }}>Error cargando anuladas</span> : null}
-        </div>
-        <pre style={{ whiteSpace: 'pre-wrap', background: 'white', padding: 12, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-          {JSON.stringify({ fechaDesde: fechaDesdePagos, usuario: session?.usuario, rows: ventasAnuladas || [], resumen_por_pagos_anulados: pagosVentasAnuladas || [] }, null, 2)}
-        </pre>
-      </section>
+            {/* build aggregated values for table */}
+            {
+              (() => {
+                const categories = ['efectivo', 'dolares', 'tarjeta', 'transferencia'] as const
+
+                const normalizeTipo = (s: string = '') => {
+                  const t = s.toLowerCase()
+                  if (t.includes('efect')) return 'efectivo'
+                  if (t.includes('dolar') || t.includes('usd')) return 'dolares'
+                  if (t.includes('tarj')) return 'tarjeta'
+                  if (t.includes('transfer')) return 'transferencia'
+                  return 'efectivo'
+                }
+
+                // pagos totals (from usePagosTotals)
+                const pagosByCat: Record<string, number> = {
+                  efectivo: Number((pagosTotals && pagosTotals.efectivo) || 0),
+                  dolares: Number((pagosTotals && pagosTotals.dolares) || 0),
+                  tarjeta: Number((pagosTotals && pagosTotals.tarjeta) || 0),
+                  transferencia: Number((pagosTotals && pagosTotals.transferencia) || 0)
+                }
+
+                // caja movimientos -> split into ingresos/egresos by detecting keywords in tipo_movimiento
+                const cajaIngresos: Record<string, number> = { efectivo: 0, dolares: 0, tarjeta: 0, transferencia: 0 }
+                const cajaEgresos: Record<string, number> = { efectivo: 0, dolares: 0, tarjeta: 0, transferencia: 0 }
+                if (Array.isArray(cajaMovs)) {
+                  cajaMovs.forEach((r: any) => {
+                    const tipo = String(r.tipo_movimiento || '').toLowerCase()
+                    const cat = normalizeTipo(tipo)
+                    const monto = Number(r.total_monto || r.monto || 0)
+                    const isEgreso = tipo.includes('egreso') || tipo.includes('salida') || tipo.includes('salir') || tipo.includes('retirada')
+                    const isIngreso = tipo.includes('ingreso') || tipo.includes('entrada') || (!isEgreso)
+                    if (isEgreso) cajaEgresos[cat] = (cajaEgresos[cat] || 0) + monto
+                    else if (isIngreso) cajaIngresos[cat] = (cajaIngresos[cat] || 0) + monto
+                  })
+                }
+
+                // anulaciones from ventasAnuladas
+                const anulacionesByCat: Record<string, number> = { efectivo: 0, dolares: 0, tarjeta: 0, transferencia: 0 }
+                if (Array.isArray(ventasAnuladas)) {
+                  ventasAnuladas.forEach((r: any) => {
+                    const key = String(r.tipo || '').toLowerCase()
+                    const cat = normalizeTipo(key)
+                    const monto = Number(r.total_monto || 0)
+                    anulacionesByCat[cat] = (anulacionesByCat[cat] || 0) + monto
+                  })
+                }
+
+                // devoluciones totals from useDevolucionesTotales
+                const devolucionesByCat: Record<string, number> = { efectivo: 0, dolares: 0, tarjeta: 0, transferencia: 0 }
+                if (devolucionesTotals) {
+                  devolucionesByCat.efectivo = Number(devolucionesTotals.efectivo || 0)
+                  devolucionesByCat.dolares = Number(devolucionesTotals.dolares || 0)
+                  devolucionesByCat.tarjeta = Number(devolucionesTotals.tarjeta || 0)
+                  devolucionesByCat.transferencia = Number(devolucionesTotals.transferencia || 0)
+                }
+
+                const currencyFmt = (v: number) => new Intl.NumberFormat('es-HN', { style: 'currency', currency: 'HNL' }).format(v).replace('HNL', 'L')
+
+                return (
+                  <div style={{ background: 'white', borderRadius: 8, padding: 12, boxShadow: '0 4px 18px rgba(2,6,23,0.08)' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Inter, system-ui, -apple-system' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left', padding: '12px 16px', color: '#0f172a' }}>Medio / Columna</th>
+                          <th style={{ textAlign: 'right', padding: '12px 16px', color: '#0f172a' }}>Pagos</th>
+                          <th style={{ textAlign: 'right', padding: '12px 16px', color: '#0f172a' }}>Ingresos</th>
+                          <th style={{ textAlign: 'right', padding: '12px 16px', color: '#0f172a' }}>Egresos</th>
+                          <th style={{ textAlign: 'right', padding: '12px 16px', color: '#0f172a' }}>Anulaciones</th>
+                          <th style={{ textAlign: 'right', padding: '12px 16px', color: '#0f172a' }}>Devoluciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {categories.map((cat) => (
+                          <tr key={cat} style={{ borderTop: '1px solid #eef2f7' }}>
+                            <td style={{ padding: '12px 16px', fontWeight: 700, color: '#0b1220', textTransform: 'capitalize' }}>{cat}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right', color: '#0ea5e9' }}>{currencyFmt(pagosByCat[cat] || 0)}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right', color: '#10b981' }}>{currencyFmt(cajaIngresos[cat] || 0)}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right', color: '#ef4444' }}>{currencyFmt(cajaEgresos[cat] || 0)}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right', color: '#f59e0b' }}>{currencyFmt(anulacionesByCat[cat] || 0)}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right', color: '#7c3aed' }}>{currencyFmt(devolucionesByCat[cat] || 0)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ borderTop: '2px solid #e6eef7' }}>
+                          <td style={{ padding: '12px 16px', fontWeight: 800 }}>Totales</td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700 }}>{currencyFmt(Object.values(pagosByCat).reduce((s, n) => s + n, 0))}</td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700 }}>{currencyFmt(Object.values(cajaIngresos).reduce((s, n) => s + n, 0))}</td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700 }}>{currencyFmt(Object.values(cajaEgresos).reduce((s, n) => s + n, 0))}</td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700 }}>{currencyFmt(Object.values(anulacionesByCat).reduce((s, n) => s + n, 0))}</td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700 }}>{currencyFmt(Object.values(devolucionesByCat).reduce((s, n) => s + n, 0))}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )
+              })()
+            }
+          </section>
+
+      {/* Ventas anuladas JSON eliminado — ahora oculto en interfaz */}
     
     </div>
   )
