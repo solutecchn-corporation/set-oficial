@@ -4,7 +4,10 @@ import supabase from '../lib/supabaseClient'
 import useHondurasTime from '../lib/useHondurasTime'
 import useDevolucionesTotales from '../hooks/useDevolucionesTotales'
 import usePagosTotals from '../hooks/usePagosTotals'
+import usePagosVentasAnuladas from '../hooks/usePagosVentasAnuladas'
 import useDataPagos from '../hooks/useDataPagos'
+import useCajaMovimientosTotals from '../hooks/useCajaMovimientosTotals'
+import useVentasAnuladas from '../hooks/useVentasAnuladas'
 
 export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
   const { session, loading: sessionLoading, startSession, refreshSession } = useCajaSession()
@@ -24,6 +27,22 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
   // Mostrar agrupación por tipo (suma de monto) — usar la fecha de apertura de la sesión
   const fechaDesdePagos = session?.fecha_apertura ?? null
   const { data: dataPagos, loading: dataPagosLoading, error: dataPagosError, reload: reloadDataPagos } = useDataPagos(fechaDesdePagos)
+  const { data: cajaMovs, loading: cajaMovsLoading, error: cajaMovsError, reload: reloadCajaMovs } = useCajaMovimientosTotals(fechaDesdePagos, session?.usuario ?? null)
+  const { data: ventasAnuladas, loading: ventasAnuladasLoading, error: ventasAnuladasError, reload: reloadVentasAnuladas } = useVentasAnuladas(fechaDesdePagos, session?.usuario ?? null)
+
+  // extract potential usuario id from localStorage user object (if present)
+  let usuarioIdForQuery: string | number | null = null
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      usuarioIdForQuery = parsed && (parsed.id || parsed.user?.id || parsed.sub || parsed.user_id) ? (parsed.id || parsed.user?.id || parsed.sub || parsed.user_id) : null
+    }
+  } catch (e) {
+    usuarioIdForQuery = null
+  }
+
+  const { data: pagosVentasAnuladas, loading: pagosVentasAnuladasLoading, error: pagosVentasAnuladasError, reload: reloadPagosVentasAnuladas } = usePagosVentasAnuladas(fechaDesdePagos, usuarioIdForQuery, session?.usuario ?? null)
 
   // Debug: mostrar pagosTotals en consola para verificar valores
   React.useEffect(() => {
@@ -217,6 +236,32 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
         </div>
         <pre style={{ whiteSpace: 'pre-wrap', background: 'white', padding: 12, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
           {JSON.stringify({ fechaDesde: fechaDesdePagos, rows: dataPagos || [] }, null, 2)}
+        </pre>
+      </section>
+      
+      {/* JSON: movimientos de caja agrupados por tipo */}
+      <section style={{ marginBottom: 20 }}>
+        <h3 style={{ margin: '8px 0' }}>Movimientos de Caja (JSON)</h3>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <button className="btn-opaque" onClick={() => reloadCajaMovs()} disabled={cajaMovsLoading}>Refrescar movimientos</button>
+          {cajaMovsLoading ? <span style={{ color: '#64748b' }}>Cargando...</span> : null}
+          {cajaMovsError ? <span style={{ color: '#ef4444' }}>Error cargando movimientos</span> : null}
+        </div>
+        <pre style={{ whiteSpace: 'pre-wrap', background: 'white', padding: 12, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+          {JSON.stringify({ fechaDesde: fechaDesdePagos, usuario: session?.usuario, rows: cajaMovs || [] }, null, 2)}
+        </pre>
+      </section>
+
+      {/* JSON: ventas anuladas (tipo_pago) */}
+      <section style={{ marginBottom: 20 }}>
+        <h3 style={{ margin: '8px 0' }}>Ventas anuladas (tipo_pago) — JSON</h3>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+          <button className="btn-opaque" onClick={() => reloadVentasAnuladas()} disabled={ventasAnuladasLoading}>Refrescar anuladas</button>
+          {ventasAnuladasLoading ? <span style={{ color: '#64748b' }}>Cargando...</span> : null}
+          {ventasAnuladasError ? <span style={{ color: '#ef4444' }}>Error cargando anuladas</span> : null}
+        </div>
+        <pre style={{ whiteSpace: 'pre-wrap', background: 'white', padding: 12, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+          {JSON.stringify({ fechaDesde: fechaDesdePagos, usuario: session?.usuario, rows: ventasAnuladas || [], resumen_por_pagos_anulados: pagosVentasAnuladas || [] }, null, 2)}
         </pre>
       </section>
     
