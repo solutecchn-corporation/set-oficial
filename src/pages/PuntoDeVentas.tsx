@@ -5,6 +5,7 @@ import CotizacionesGuardadas from './CotizacionesGuardadas'
 import PedidosEnLinea from './PedidosEnLinea'
 import CorteCajaParcial from './CorteCajaParcial'
 import CorteCajaTotal from './CorteCajaTotal'
+import AnulacionFactura from './AnulacionFactura'
 import supabase from '../lib/supabaseClient'
 import ClienteSearchModal from '../components/ClienteSearchModal'
 import PaymentModal from '../components/PaymentModal'
@@ -64,7 +65,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
 
   const productosFiltrados = productos.filter(p =>
     ((String(p.nombre || '').toLowerCase().includes(busqueda.toLowerCase())) ||
-     (String(p.sku || '').toLowerCase().includes(busqueda.toLowerCase()))) &&
+      (String(p.sku || '').toLowerCase().includes(busqueda.toLowerCase()))) &&
     (categoriaFiltro === 'Todas' || p.categoria === categoriaFiltro)
   );
 
@@ -174,9 +175,9 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   ${carrito.map(i => `${i.producto.sku} | ${i.producto.nombre} x${i.cantidad} = L${(Number(i.producto.precio || 0) * i.cantidad).toFixed(2)}`).join('\n')}
   ----------------------------------------
   Subtotal: L${subtotal.toFixed(2)}
-  ISV (${(taxRate*100).toFixed(2)}%): L${isvTotal.toFixed(2)}
+  ISV (${(taxRate * 100).toFixed(2)}%): L${isvTotal.toFixed(2)}
   Impuesto 18%: L${imp18Total.toFixed(2)}
-  Impuesto turístico (${(taxTouristRate*100).toFixed(2)}%): L${impTouristTotal.toFixed(2)}
+  Impuesto turístico (${(taxTouristRate * 100).toFixed(2)}%): L${impTouristTotal.toFixed(2)}
   TOTAL: L${total.toFixed(2)}
   ${tipo === 'factura' ? '\n¡Gracias por su compra!' : '\nVálida por 24 horas'}
     `.trim();
@@ -186,7 +187,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
 
   // Facturación: modal de selección y generación de factura HTML
   const [facturarModalOpen, setFacturarModalOpen] = useState(false)
-  const [printingMode, setPrintingMode] = useState<'factura'|'cotizacion'>('factura')
+  const [printingMode, setPrintingMode] = useState<'factura' | 'cotizacion'>('factura')
   // confirmación para guardar cotización (aparecerá AL FINAL del flujo)
   const [cotizacionConfirmOpen, setCotizacionConfirmOpen] = useState(false)
   const [cotizacionPendingClient, setCotizacionPendingClient] = useState<{ cliente?: string; rtn?: string | null } | null>(null)
@@ -196,9 +197,9 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   const [clienteSearchOpen, setClienteSearchOpen] = useState(false)
   const [clienteNombre, setClienteNombre] = useState('')
   const [clienteRTN, setClienteRTN] = useState('')
-    const clienteNombreRef = useRef<HTMLInputElement | null>(null);
-    const clienteNombreInputRef = useRef<HTMLInputElement | null>(null);
-  const [clienteTipo, setClienteTipo] = useState<'final'|'normal'|'juridico'>('final')
+  const clienteNombreRef = useRef<HTMLInputElement | null>(null);
+  const clienteNombreInputRef = useRef<HTMLInputElement | null>(null);
+  const [clienteTipo, setClienteTipo] = useState<'final' | 'normal' | 'juridico'>('final')
   const [clienteTelefono, setClienteTelefono] = useState('')
   const [clienteCorreo, setClienteCorreo] = useState('')
   const [clienteExonerado, setClienteExonerado] = useState<boolean>(false)
@@ -222,14 +223,14 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
     try {
       if (clienteTipo === 'juridico') {
         console.debug('handleRTNChange: buscando cliente juridico para RTN=', val)
-        const { data, error } = await supabase.from('clientes').select('id,nombre,telefono,correo_electronico,exonerado').eq('rtn', val).eq('tipo_cliente','juridico').maybeSingle()
+        const { data, error } = await supabase.from('clientes').select('id,nombre,telefono,correo_electronico,exonerado').eq('rtn', val).eq('tipo_cliente', 'juridico').maybeSingle()
         console.debug('handleRTNChange: supabase response', { data, error })
         if (!error && data && (data as any).nombre) {
           setClienteNombre((data as any).nombre || '')
           setClienteTelefono((data as any).telefono || '')
           setClienteCorreo((data as any).correo_electronico || '')
           setClienteExonerado(Boolean((data as any).exonerado))
-          setTimeout(() => { try { clienteNombreInputRef.current?.focus() } catch (e) {} }, 50)
+          setTimeout(() => { try { clienteNombreInputRef.current?.focus() } catch (e) { } }, 50)
           return
         } else {
           setClienteNombre('')
@@ -246,7 +247,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
       if (!error && data && (data as any).nombre) {
         setClienteNombre((data as any).nombre || '')
         // mover foco al nombre para permitir edición si el usuario quiere
-        setTimeout(() => { try { clienteNombreInputRef.current?.focus() } catch (e) {} }, 50)
+        setTimeout(() => { try { clienteNombreInputRef.current?.focus() } catch (e) { } }, 50)
       } else {
         // no existe, limpiar nombre para nuevo registro
         setClienteNombre('')
@@ -256,7 +257,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
     }
   }
 
-  const openSelector = (mode: 'factura'|'cotizacion') => {
+  const openSelector = (mode: 'factura' | 'cotizacion') => {
     if (mode === 'cotizacion') {
       // iniciar flujo de cotización: abrir modal único de cotización
       setPrintingMode('cotizacion')
@@ -324,9 +325,9 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
           const { data: fetched, error: fErr } = await supabase.from('cotizaciones').select('*').eq('id', cotizacionId).maybeSingle()
           if (!fErr && fetched) {
             numeroToReturn = (fetched as any).numero_cotizacion || (fetched as any)['Número'] || null
-            try { setCotizacionLastNumero(numeroToReturn) } catch (e) {}
+            try { setCotizacionLastNumero(numeroToReturn) } catch (e) { }
           }
-        } catch (e) {}
+        } catch (e) { }
       } else {
         const { data: insData, error: insErr } = await supabase.from('cotizaciones').insert([payload]).select('*').maybeSingle()
         if (insErr) {
@@ -353,7 +354,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
           numeroToReturn = (insData as any)?.numero_cotizacion || (insData as any)?.['Número'] || numeroCot
         }
 
-        try { setCotizacionLastNumero(numeroToReturn) } catch (e) {}
+        try { setCotizacionLastNumero(numeroToReturn) } catch (e) { }
         if (!cotizacionId) return null
       }
 
@@ -387,8 +388,8 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
         // ignore
       }
       const { error: detErr } = await supabase.from('cotizaciones_detalle').insert(detalles)
-        if (detErr) console.warn('Error insertando cotizaciones_detalle:', detErr)
-        else console.debug('Cotizacion guardada id=', cotizacionId)
+      if (detErr) console.warn('Error insertando cotizaciones_detalle:', detErr)
+      else console.debug('Cotizacion guardada id=', cotizacionId)
 
       // Actualizar UI inmediatamente: vaciar carrito y refrescar tabla de productos
       try {
@@ -497,7 +498,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
         console.debug('Pre-print: marcando cotizacion como aceptada, id=', cotizacionEditId)
         const { error: upErr } = await supabase.from('cotizaciones').update({ estado: 'aceptada' }).eq('id', cotizacionEditId)
         if (upErr) console.warn('Error marcando cotizacion (pre-print):', upErr)
-        else try { setCotizacionEditId(null) } catch (e) {}
+        else try { setCotizacionEditId(null) } catch (e) { }
       } catch (e) {
         console.warn('Error marcacion pre-print:', e)
       }
@@ -521,7 +522,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
           if (userId) {
             // normalizar id para la consulta: si parece un entero, pasar Number()
             const userIdQuery: any = (typeof userId === 'string' && /^\d+$/.test(userId)) ? Number(userId) : userId
-              try {
+            try {
               // solicitar columnas relevantes incluyendo identificador y secuencia_actual
               const { data: caiRowsByUser, error: caiUserErr } = await supabase.from('cai').select('id,cai,identificador,rango_de,rango_hasta,fecha_vencimiento,secuencia_actual').eq('usuario_id', userIdQuery).order('id', { ascending: false }).limit(1)
               if (!caiUserErr && Array.isArray(caiRowsByUser) && caiRowsByUser.length > 0) caiData = caiRowsByUser[0]
@@ -563,7 +564,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
       const win = iframe.contentWindow
       const doc = iframe.contentDocument || iframe.contentWindow?.document
       if (!doc || !win) {
-        try { document.body.removeChild(iframe) } catch (e) {}
+        try { document.body.removeChild(iframe) } catch (e) { }
       } else {
         doc.open()
         doc.write(html)
@@ -571,7 +572,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
 
         const printWhenReady = () => {
           try { win.focus(); win.print() } catch (e) { console.warn('Error during iframe print (finalize):', e) }
-          setTimeout(() => { try { document.body.removeChild(iframe) } catch (e) {} }, 800)
+          setTimeout(() => { try { document.body.removeChild(iframe) } catch (e) { } }, 800)
         }
 
         const tryPrint = () => {
@@ -595,7 +596,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
           } catch (e) {
             try {
               win.addEventListener('load', printWhenReady)
-            } catch (e) {}
+            } catch (e) { }
             setTimeout(printWhenReady, 1000)
           }
         }
@@ -613,7 +614,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
     } catch (e) {
       console.warn('Direct print failed, falling back to opening new window', e)
       const w = window.open('', '_blank')
-      if (w) { w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try { w.print(); w.close() } catch (e) {} }, 800) }
+      if (w) { w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try { w.print(); w.close() } catch (e) { } }, 800) }
     }
 
     // post-print cleanup
@@ -633,8 +634,8 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   }
 
   // helper: inserta venta y sus detalles en supabase
-// opcional: caiData { id, cai, fecha_limite_emision, rango_desde, rango_hasta, secuencia_actual }
-const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioId }: { clienteName?: string, rtn?: string | null, paymentPayload?: any, caiData?: any, usuarioId?: string | null }) => {
+  // opcional: caiData { id, cai, fecha_limite_emision, rango_desde, rango_hasta, secuencia_actual }
+  const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioId }: { clienteName?: string, rtn?: string | null, paymentPayload?: any, caiData?: any, usuarioId?: string | null }) => {
     if (!carrito || carrito.length === 0) return null
     const tipoPagoValue = paymentPayload && paymentPayload.tipoPagoString ? String(paymentPayload.tipoPagoString) : ''
     const totalPaid = paymentPayload && paymentPayload.totalPaid ? Number(paymentPayload.totalPaid || 0) : 0
@@ -689,8 +690,8 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
       // include CAI metadata when available
       cai: usedCai?.cai ?? null,
       // compose rango_desde/hasta including identificador when possible
-      rango_desde: (usedCai && usedCai.identificador ? String(usedCai.identificador) : '') + (usedCai?.rango_de != null ? String(usedCai.rango_de) : '' ) || null,
-      rango_hasta: (usedCai && usedCai.identificador ? String(usedCai.identificador) : '') + (usedCai?.rango_hasta != null ? String(usedCai.rango_hasta) : '' ) || null,
+      rango_desde: (usedCai && usedCai.identificador ? String(usedCai.identificador) : '') + (usedCai?.rango_de != null ? String(usedCai.rango_de) : '') || null,
+      rango_hasta: (usedCai && usedCai.identificador ? String(usedCai.identificador) : '') + (usedCai?.rango_hasta != null ? String(usedCai.rango_hasta) : '') || null,
       fecha_limite_emision: usedCai?.fecha_vencimiento ?? usedCai?.fecha_limite_emision ?? null
     }
 
@@ -802,7 +803,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
                 const { data: refreshed, error: refErr } = await supabase.from('cai').select('id,cai,identificador,rango_de,rango_hasta,fecha_vencimiento,secuencia_actual').eq('id', usedCai.id).maybeSingle()
                 if (!refErr && refreshed) {
                   setCaiInfoState(refreshed)
-                  try { localStorage.setItem('caiInfo', JSON.stringify(refreshed)) } catch (e) {}
+                  try { localStorage.setItem('caiInfo', JSON.stringify(refreshed)) } catch (e) { }
                 }
               } catch (e) { console.debug('Error refreshing cai after RPC:', e) }
             }
@@ -816,7 +817,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
                 const { data: refreshed, error: refErr } = await supabase.from('cai').select('id,cai,identificador,rango_de,rango_hasta,fecha_vencimiento,secuencia_actual').eq('id', usedCai.id).maybeSingle()
                 if (!refErr && refreshed) {
                   setCaiInfoState(refreshed)
-                  try { localStorage.setItem('caiInfo', JSON.stringify(refreshed)) } catch (e) {}
+                  try { localStorage.setItem('caiInfo', JSON.stringify(refreshed)) } catch (e) { }
                 }
               } catch (e) { console.debug('Error refreshing cai after RPC (scalar):', e) }
             }
@@ -938,16 +939,16 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
           if (rangoHastaNum != null && toStoreNum != null && toStoreNum > rangoHastaNum) {
             console.warn('No se actualizará cai.secuencia_actual porque excede rango_hasta', { toStoreNum, rangoHastaNum })
           } else {
-              const { error: updCaiErr } = await supabase.from('cai').update({ secuencia_actual: seqToStore }).eq('id', manualCaiId)
-              if (updCaiErr) console.debug('Error updating cai.secuencia_actual (manual path):', updCaiErr)
-              else {
-                console.debug('Updated cai.secuencia_actual to', seqToStore, 'for cai id', manualCaiId)
-                try {
-                  const newCai = { ...(usedCai || {}), secuencia_actual: seqToStore }
-                  setCaiInfoState(newCai)
-                  try { localStorage.setItem('caiInfo', JSON.stringify(newCai)) } catch (e) { }
-                } catch (e) { console.debug('Error updating local caiInfoState/localStorage:', e) }
-              }
+            const { error: updCaiErr } = await supabase.from('cai').update({ secuencia_actual: seqToStore }).eq('id', manualCaiId)
+            if (updCaiErr) console.debug('Error updating cai.secuencia_actual (manual path):', updCaiErr)
+            else {
+              console.debug('Updated cai.secuencia_actual to', seqToStore, 'for cai id', manualCaiId)
+              try {
+                const newCai = { ...(usedCai || {}), secuencia_actual: seqToStore }
+                setCaiInfoState(newCai)
+                try { localStorage.setItem('caiInfo', JSON.stringify(newCai)) } catch (e) { }
+              } catch (e) { console.debug('Error updating local caiInfoState/localStorage:', e) }
+            }
           }
         } catch (e) {
           console.debug('Validation error while checking rango_hasta:', e)
@@ -995,13 +996,13 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
     }
   }
 
-    useEffect(() => {
-      if (clienteNormalModalOpen) {
-        setTimeout(() => {
-          try { clienteNombreRef.current?.focus() } catch (e) { }
-        }, 80)
-      }
-    }, [clienteNormalModalOpen])
+  useEffect(() => {
+    if (clienteNormalModalOpen) {
+      setTimeout(() => {
+        try { clienteNombreRef.current?.focus() } catch (e) { }
+      }, 80)
+    }
+  }, [clienteNormalModalOpen])
 
   const submitClienteNormal = async () => {
     // guardar/actualizar cliente en la tabla `clientenatural`
@@ -1064,7 +1065,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
           console.warn('Error marcando cotizacion como facturado (pre-print):', upErr)
         } else {
           console.debug('Cotizacion marcada como facturado (pre-print):', cotizacionEditId)
-          try { setCotizacionEditId(null) } catch (e) {}
+          try { setCotizacionEditId(null) } catch (e) { }
         }
       } catch (e) {
         console.warn('Error marcacion pre-print:', e)
@@ -1129,7 +1130,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
       const win = iframe.contentWindow
       const doc = iframe.contentDocument || iframe.contentWindow?.document
       if (!doc || !win) {
-        try { document.body.removeChild(iframe) } catch (e) {}
+        try { document.body.removeChild(iframe) } catch (e) { }
       } else {
         doc.open()
         doc.write(html)
@@ -1137,7 +1138,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
 
         const printWhenReady = () => {
           try { win.focus(); win.print() } catch (e) { console.warn('Error during iframe print (cliente normal):', e) }
-          setTimeout(() => { try { document.body.removeChild(iframe) } catch (e) {} }, 800)
+          setTimeout(() => { try { document.body.removeChild(iframe) } catch (e) { } }, 800)
         }
 
         const tryPrint = () => {
@@ -1161,7 +1162,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
           } catch (e) {
             try {
               win.addEventListener('load', printWhenReady)
-            } catch (e) {}
+            } catch (e) { }
             setTimeout(printWhenReady, 1000)
           }
         }
@@ -1179,7 +1180,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
     } catch (e) {
       console.warn('Direct print (cliente normal) failed, falling back to new window', e)
       const w = window.open('', '_blank')
-      if (w) { w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try { w.print(); w.close() } catch (e) {} }, 800) }
+      if (w) { w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try { w.print(); w.close() } catch (e) { } }, 800) }
     }
     const afterFinish = async () => {
       if (printingMode === 'factura') {
@@ -1229,7 +1230,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
         console.warn('Error cargando inventario:', err)
       })
   }, [])
-  
+
   // Load products from DB: inventario + precios + registro_de_inventario
   const refreshProducts = async () => {
     try {
@@ -1299,7 +1300,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
     }
   }
 
-  useEffect(() => { let mounted = true; refreshProducts().catch(e=>{ if (mounted) console.warn('refreshProducts error', e) }); return ()=>{ mounted = false } }, [])
+  useEffect(() => { let mounted = true; refreshProducts().catch(e => { if (mounted) console.warn('refreshProducts error', e) }); return () => { mounted = false } }, [])
 
   // Si hay una cotización para cargar desde otra vista, cargarla en el carrito
   useEffect(() => {
@@ -1311,16 +1312,16 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
         })()
         if (!parsed) return
         // si la payload contiene header.id, marcar que estamos editando esa cotización
-        try { setCotizacionEditId(parsed.header && parsed.header.id ? String(parsed.header.id) : null) } catch (e) {}
+        try { setCotizacionEditId(parsed.header && parsed.header.id ? String(parsed.header.id) : null) } catch (e) { }
         try {
           const num = parsed.header && (parsed.header.numero_cotizacion || parsed.header['Número'] || parsed.header.numero) ? (parsed.header.numero_cotizacion || parsed.header['Número'] || parsed.header.numero) : null
           if (num) setCotizacionLastNumero(num)
-        } catch (e) {}
+        } catch (e) { }
         const detalles = Array.isArray(parsed.detalles) ? parsed.detalles : []
         const items: ItemCarrito[] = detalles.map((d: any) => {
           const prodMatch = productos.find(p => String(p.id) === String(d.producto_id))
           const producto: Producto = prodMatch ? { ...prodMatch } : {
-            id: String(d.producto_id || ('temp-' + Math.random().toString(36).slice(2,8))),
+            id: String(d.producto_id || ('temp-' + Math.random().toString(36).slice(2, 8))),
             sku: d.sku ?? undefined,
             nombre: d.descripcion || d.nombre || 'Artículo',
             precio: Number(d.precio_unitario || d.precio || 0),
@@ -1334,7 +1335,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
           return { producto, cantidad: Number(d.cantidad || 1) }
         })
         if (items.length > 0) setCarrito(items)
-        try { localStorage.removeItem('cotizacion_to_load') } catch (e) {}
+        try { localStorage.removeItem('cotizacion_to_load') } catch (e) { }
       } catch (e) {
         // ignore parse errors
       }
@@ -1348,7 +1349,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
       try {
         const ce = ev as CustomEvent
         doLoad(ce.detail)
-      } catch (e) {}
+      } catch (e) { }
     }
     window.addEventListener('cotizacion:load', handler as EventListener)
     return () => { window.removeEventListener('cotizacion:load', handler as EventListener) }
@@ -1387,7 +1388,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
       } catch (e) { console.debug('refreshCaiInfo: error building lookup params', e) }
       if (caiFetched) {
         setCaiInfoState(caiFetched)
-        try { localStorage.setItem('caiInfo', JSON.stringify(caiFetched)) } catch (e) {}
+        try { localStorage.setItem('caiInfo', JSON.stringify(caiFetched)) } catch (e) { }
         console.debug('refreshCaiInfo: updated caiInfoState', caiFetched)
       }
     } catch (e) {
@@ -1419,7 +1420,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
       } catch (e) { console.debug('refreshNcInfo: error building lookup params', e) }
       if (ncFetched) {
         setNcInfoState(ncFetched)
-        try { localStorage.setItem('ncInfo', JSON.stringify(ncFetched)) } catch (e) {}
+        try { localStorage.setItem('ncInfo', JSON.stringify(ncFetched)) } catch (e) { }
         console.debug('refreshNcInfo: updated ncInfoState', ncFetched)
       }
     } catch (e) {
@@ -1477,7 +1478,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
                   }
                   if (fetched) {
                     setCaiInfoState(fetched)
-                    try { localStorage.setItem('caiInfo', JSON.stringify(fetched)) } catch (e) {}
+                    try { localStorage.setItem('caiInfo', JSON.stringify(fetched)) } catch (e) { }
                     console.debug('PV: refreshed caiInfo from Supabase:', fetched)
                   }
                 }
@@ -1521,7 +1522,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
                   }
                   if (fetched) {
                     setNcInfoState(fetched)
-                    try { localStorage.setItem('ncInfo', JSON.stringify(fetched)) } catch (e) {}
+                    try { localStorage.setItem('ncInfo', JSON.stringify(fetched)) } catch (e) { }
                     console.debug('PV: refreshed ncInfo from Supabase:', fetched)
                   }
                 }
@@ -1542,69 +1543,69 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
   // Load tax rate from DB (table `impuesto`, first row). Normalize to decimal (e.g. 15 -> 0.15)
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        // Cargar todas las filas de impuesto y mapear por id (solo columna existente)
-        const { data, error } = await supabase.from('impuesto').select('id, impuesto_venta')
-        if (error) throw error
-        if (!data || !Array.isArray(data)) return
-        const findVal = (id: number) => {
-          const row = (data as any[]).find(r => Number(r.id) === id)
-          if (!row) return null
-          const raw = row.impuesto_venta
-          if (raw === undefined || raw === null) return null
-          const n = Number(raw)
-          if (Number.isNaN(n)) return null
-          return n > 1 ? n / 100 : n
-        }
-        const v1 = findVal(1)
-        const v2 = findVal(2)
-        const v3 = findVal(3)
-        if (mounted) {
-          // Prefer resolved values, but provide fallbacks: try fetching single ids if missing, then default constants
-          let finalV1 = v1
-          let finalV2 = v2
-          let finalV3 = v3
-          try {
-            if ((finalV1 === null || finalV1 === 0) && mounted) {
-              const r1 = await supabase.from('impuesto').select('impuesto_venta').eq('id', 1).maybeSingle()
-              const raw1 = (r1 as any)?.data?.impuesto_venta ?? null
-              const n1 = raw1 == null ? null : Number(raw1)
-              if (n1 != null && !Number.isNaN(n1)) finalV1 = n1 > 1 ? n1 / 100 : n1
-            }
-            if ((finalV2 === null || finalV2 === 0) && mounted) {
-              const r2 = await supabase.from('impuesto').select('impuesto_venta').eq('id', 2).maybeSingle()
-              const raw2 = (r2 as any)?.data?.impuesto_venta ?? null
-              const n2 = raw2 == null ? null : Number(raw2)
-              if (n2 != null && !Number.isNaN(n2)) finalV2 = n2 > 1 ? n2 / 100 : n2
-            }
-            if ((finalV3 === null || finalV3 === 0) && mounted) {
-              const r3 = await supabase.from('impuesto').select('impuesto_venta').eq('id', 3).maybeSingle()
-              const raw3 = (r3 as any)?.data?.impuesto_venta ?? null
-              const n3 = raw3 == null ? null : Number(raw3)
-              if (n3 != null && !Number.isNaN(n3)) finalV3 = n3 > 1 ? n3 / 100 : n3
-            }
-          } catch (err) {
-            console.warn('PV: fallback single-id impuesto fetch failed', err)
+      ; (async () => {
+        try {
+          // Cargar todas las filas de impuesto y mapear por id (solo columna existente)
+          const { data, error } = await supabase.from('impuesto').select('id, impuesto_venta')
+          if (error) throw error
+          if (!data || !Array.isArray(data)) return
+          const findVal = (id: number) => {
+            const row = (data as any[]).find(r => Number(r.id) === id)
+            if (!row) return null
+            const raw = row.impuesto_venta
+            if (raw === undefined || raw === null) return null
+            const n = Number(raw)
+            if (Number.isNaN(n)) return null
+            return n > 1 ? n / 100 : n
           }
+          const v1 = findVal(1)
+          const v2 = findVal(2)
+          const v3 = findVal(3)
+          if (mounted) {
+            // Prefer resolved values, but provide fallbacks: try fetching single ids if missing, then default constants
+            let finalV1 = v1
+            let finalV2 = v2
+            let finalV3 = v3
+            try {
+              if ((finalV1 === null || finalV1 === 0) && mounted) {
+                const r1 = await supabase.from('impuesto').select('impuesto_venta').eq('id', 1).maybeSingle()
+                const raw1 = (r1 as any)?.data?.impuesto_venta ?? null
+                const n1 = raw1 == null ? null : Number(raw1)
+                if (n1 != null && !Number.isNaN(n1)) finalV1 = n1 > 1 ? n1 / 100 : n1
+              }
+              if ((finalV2 === null || finalV2 === 0) && mounted) {
+                const r2 = await supabase.from('impuesto').select('impuesto_venta').eq('id', 2).maybeSingle()
+                const raw2 = (r2 as any)?.data?.impuesto_venta ?? null
+                const n2 = raw2 == null ? null : Number(raw2)
+                if (n2 != null && !Number.isNaN(n2)) finalV2 = n2 > 1 ? n2 / 100 : n2
+              }
+              if ((finalV3 === null || finalV3 === 0) && mounted) {
+                const r3 = await supabase.from('impuesto').select('impuesto_venta').eq('id', 3).maybeSingle()
+                const raw3 = (r3 as any)?.data?.impuesto_venta ?? null
+                const n3 = raw3 == null ? null : Number(raw3)
+                if (n3 != null && !Number.isNaN(n3)) finalV3 = n3 > 1 ? n3 / 100 : n3
+              }
+            } catch (err) {
+              console.warn('PV: fallback single-id impuesto fetch failed', err)
+            }
 
-          // final fallbacks to sensible defaults if still missing
-          if (finalV1 === null || finalV1 === 0) finalV1 = 0.15
-          if (finalV2 === null || finalV2 === 0) finalV2 = 0.18
-          if (finalV3 === null || finalV3 === 0) finalV3 = 0.04
+            // final fallbacks to sensible defaults if still missing
+            if (finalV1 === null || finalV1 === 0) finalV1 = 0.15
+            if (finalV2 === null || finalV2 === 0) finalV2 = 0.18
+            if (finalV3 === null || finalV3 === 0) finalV3 = 0.04
 
-          setTaxRate(finalV1)
-          setTax18Rate(finalV2)
-          setTaxTouristRate(finalV3)
+            setTaxRate(finalV1)
+            setTax18Rate(finalV2)
+            setTaxTouristRate(finalV3)
 
-          // debug log loaded impuesto rows and resolved rates
-          console.debug('PV: impuestos raw rows', data)
-          console.debug('PV: resolved tax rates', { taxRate: finalV1, tax18Rate: finalV2, taxTouristRate: finalV3 })
+            // debug log loaded impuesto rows and resolved rates
+            console.debug('PV: impuestos raw rows', data)
+            console.debug('PV: resolved tax rates', { taxRate: finalV1, tax18Rate: finalV2, taxTouristRate: finalV3 })
+          }
+        } catch (e) {
+          console.warn('Error cargando impuesto en PV:', e)
         }
-      } catch (e) {
-        console.warn('Error cargando impuesto en PV:', e)
-      }
-    })()
+      })()
     return () => { mounted = false }
   }, [])
 
@@ -1619,7 +1620,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
     }
 
     // If we found product info, build a normalized object for modal
-      if (ent) {
+    if (ent) {
       const cantidad = Number((ent.stock ?? 0))
       const sel = {
         id: ent.id,
@@ -1645,38 +1646,38 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
   // Resolve image URLs for products using storage public URL or signed URL
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        const BUCKET = (import.meta.env.VITE_SUPABASE_STORAGE_BUCKET as string) || 'inventario'
-        const urlMap: Record<string, string | null> = {}
-        await Promise.all((productos || []).map(async (p) => {
-          const raw = (p as any).imagen
-          if (!raw) { urlMap[String(p.id)] = null; return }
-          const src = String(raw)
-          if (src.startsWith('http')) { urlMap[String(p.id)] = src; return }
-          let objectPath = src
-          const m = String(src).match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/)
-          if (m) objectPath = decodeURIComponent(m[2])
-          try {
-            const publicRes = await supabase.storage.from(BUCKET).getPublicUrl(objectPath)
-            const candidate = (publicRes as any)?.data?.publicUrl || (publicRes as any)?.data?.publicURL || null
-            if (candidate) { urlMap[String(p.id)] = candidate; return }
-          } catch (e) {
-            // continue
-          }
-          try {
-            const signed = await supabase.storage.from(BUCKET).createSignedUrl(objectPath, 60 * 60 * 24 * 7)
-            const signedUrl = (signed as any)?.data?.signedUrl ?? null
-            urlMap[String(p.id)] = signedUrl
-          } catch (e) {
-            urlMap[String(p.id)] = null
-          }
-        }))
-        if (mounted) setImageUrls(urlMap)
-      } catch (e) {
-        console.warn('Error resolviendo imágenes en PV', e)
-      }
-    })()
+      ; (async () => {
+        try {
+          const BUCKET = (import.meta.env.VITE_SUPABASE_STORAGE_BUCKET as string) || 'inventario'
+          const urlMap: Record<string, string | null> = {}
+          await Promise.all((productos || []).map(async (p) => {
+            const raw = (p as any).imagen
+            if (!raw) { urlMap[String(p.id)] = null; return }
+            const src = String(raw)
+            if (src.startsWith('http')) { urlMap[String(p.id)] = src; return }
+            let objectPath = src
+            const m = String(src).match(/\/storage\/v1\/object\/public\/([^/]+)\/(.*)/)
+            if (m) objectPath = decodeURIComponent(m[2])
+            try {
+              const publicRes = await supabase.storage.from(BUCKET).getPublicUrl(objectPath)
+              const candidate = (publicRes as any)?.data?.publicUrl || (publicRes as any)?.data?.publicURL || null
+              if (candidate) { urlMap[String(p.id)] = candidate; return }
+            } catch (e) {
+              // continue
+            }
+            try {
+              const signed = await supabase.storage.from(BUCKET).createSignedUrl(objectPath, 60 * 60 * 24 * 7)
+              const signedUrl = (signed as any)?.data?.signedUrl ?? null
+              urlMap[String(p.id)] = signedUrl
+            } catch (e) {
+              urlMap[String(p.id)] = null
+            }
+          }))
+          if (mounted) setImageUrls(urlMap)
+        } catch (e) {
+          console.warn('Error resolviendo imágenes en PV', e)
+        }
+      })()
     return () => { mounted = false }
   }, [productos])
   if (view) {
@@ -1686,6 +1687,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
     if (view === 'PedidosEnLinea') return <PedidosEnLinea onBack={() => setView(null)} />
     if (view === 'CorteCajaParcial') return <CorteCajaParcial onBack={() => setView(null)} />
     if (view === 'CorteCajaTotal') return <CorteCajaTotal onBack={() => setView(null)} />
+    if (view === 'AnulacionFactura') return <AnulacionFactura onBack={() => setView(null)} />
   }
 
   return (
@@ -1751,7 +1753,7 @@ const insertVenta = async ({ clienteName, rtn, paymentPayload, caiData, usuarioI
 
         {/* Layout de 2 columnas: Tabla + Carrito */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: 16 }}>
-          
+
           {/* TABLA DE PRODUCTOS (componente separado) */}
           <div style={{
             background: 'white', borderRadius: 10, overflow: 'hidden',

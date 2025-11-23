@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import supabase from '../lib/supabaseClient'
 import generateCotizacionHTML from '../lib/cotizaconhtmlimp'
+import ModalWrapper from '../components/ModalWrapper'
 
 type Cotizacion = {
   id: number;
@@ -201,7 +202,7 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
 
         const win = iframe.contentWindow
         const doc = iframe.contentDocument || iframe.contentWindow?.document
-        if (!doc || !win) { try { document.body.removeChild(iframe) } catch (e) {} }
+        if (!doc || !win) { try { document.body.removeChild(iframe) } catch (e) { } }
         else {
           doc.open()
           doc.write(html)
@@ -209,7 +210,7 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
 
           const printWhenReady = () => {
             try { win.focus(); win.print() } catch (e) { console.warn('Error during iframe print (reprint):', e) }
-            setTimeout(() => { try { document.body.removeChild(iframe) } catch (e) {} }, 800)
+            setTimeout(() => { try { document.body.removeChild(iframe) } catch (e) { } }, 800)
           }
 
           const tryPrint = () => {
@@ -224,7 +225,7 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
                 if (loaded === imgs.length) printWhenReady()
               } else { printWhenReady() }
             } catch (e) {
-              try { win.addEventListener('load', printWhenReady) } catch (e) {}
+              try { win.addEventListener('load', printWhenReady) } catch (e) { }
               setTimeout(printWhenReady, 1000)
             }
           }
@@ -237,7 +238,7 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
       } catch (e) {
         console.warn('Reprint direct failed, opening new window fallback', e)
         const w = window.open('', '_blank')
-        if (w) { w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try { w.print(); w.close() } catch (e) {} }, 800) }
+        if (w) { w.document.open(); w.document.write(html); w.document.close(); setTimeout(() => { try { w.print(); w.close() } catch (e) { } }, 800) }
       }
 
     } catch (e) {
@@ -278,39 +279,61 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
   }
 
   return (
-    <div style={{ padding: 20, maxWidth: 1000, margin: '24px auto' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <h2 style={{ margin: 0 }}>Cotizaciones Guardadas</h2>
-        <div>
-          <button onClick={fetchRows} className="btn-opaque" style={{ marginRight: 8 }}>Refrescar</button>
-          <button onClick={onBack} className="btn-opaque">Volver</button>
+    <div style={{ padding: 28, maxWidth: 1200, margin: '32px auto', fontSize: '13px' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <h2 style={{ margin: 0, fontSize: '24px', fontWeight: 700, color: '#1e293b' }}>Cotizaciones Guardadas</h2>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button onClick={fetchRows} className="btn-opaque" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+            Refrescar
+          </button>
+          <button onClick={onBack} className="btn-opaque" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            ← Volver
+          </button>
         </div>
       </header>
 
-      <section style={{ background: 'white', padding: 16, borderRadius: 8, boxShadow: '0 1px 6px rgba(2,6,23,0.06)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <label style={{ color: '#475569', fontSize: 14 }}>Buscar:</label>
-            <input placeholder="Número o cliente" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ padding: 8, borderRadius: 6, border: '1px solid #e6edf3', minWidth: 240 }} />
-            <button onClick={() => setSearchTerm('')} className="btn-opaque" style={{ marginLeft: 6 }}>Limpiar</button>
+      <section style={{ background: 'white', padding: 32, borderRadius: 16, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)', marginBottom: 24 }}>
+        {/* Search Bar */}
+        <div style={{ maxWidth: 600, margin: '0 auto' }}>
+          <div style={{ position: 'relative', display: 'flex', gap: 12 }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <div style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+              </div>
+              <input
+                placeholder="Buscar por número, cliente o usuario..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="input"
+                style={{ paddingLeft: 42, height: 48, fontSize: '15px', borderRadius: 12 }}
+              />
+            </div>
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')} className="btn-opaque" style={{ height: 48, borderRadius: 12 }}>
+                Limpiar
+              </button>
+            )}
           </div>
         </div>
+      </section>
 
+      <section style={{ background: 'white', borderRadius: 12, boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', overflow: 'hidden' }}>
         {loading ? (
-          <div>Cargando...</div>
+          <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>Cargando...</div>
         ) : rows.length === 0 ? (
-          <div style={{ color: '#64748b' }}>No hay cotizaciones guardadas.</div>
+          <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>No hay cotizaciones guardadas.</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', borderBottom: '1px solid #e6edf3' }}>
-                <th style={{ padding: 8 }}>Número</th>
-                <th style={{ padding: 8 }}>Fecha</th>
-                <th style={{ padding: 8 }}>Usuario</th>
-                <th style={{ padding: 8 }}>Cliente ID</th>
-                <th style={{ padding: 8 }}>Total</th>
-                <th style={{ padding: 8 }}>Estado</th>
-                <th style={{ padding: 8 }}>Acciones</th>
+            <thead>
+              <tr style={{ textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                <th style={{ padding: '16px 24px', fontWeight: 600, color: '#475569' }}>Número</th>
+                <th style={{ padding: '16px 24px', fontWeight: 600, color: '#475569' }}>Fecha</th>
+                <th style={{ padding: '16px 24px', fontWeight: 600, color: '#475569' }}>Usuario</th>
+                <th style={{ padding: '16px 24px', fontWeight: 600, color: '#475569' }}>Cliente</th>
+                <th style={{ padding: '16px 24px', fontWeight: 600, color: '#475569' }}>Total</th>
+                <th style={{ padding: '16px 24px', fontWeight: 600, color: '#475569' }}>Estado</th>
+                <th style={{ padding: '16px 24px', fontWeight: 600, color: '#475569', textAlign: 'right' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -324,25 +347,38 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
                   return num.includes(s) || client.includes(s) || usuario.includes(s)
                 })
                 .map(r => (
-                <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: 8 }}>{r.numero_cotizacion || (r as any)['Número'] || ''}</td>
-                  <td style={{ padding: 8 }}>{r.fecha_cotizacion ? new Date(r.fecha_cotizacion).toLocaleString() : ''}</td>
-                  <td style={{ padding: 8 }}>{r.usuario || ''}</td>
-                  <td style={{ padding: 8 }}>{(r as any).cliente_nombre || ((r as any).cliente_id ? String((r as any).cliente_id) : '')}</td>
-                  <td style={{ padding: 8 }}>L {Number(r.total || 0).toFixed(2)}</td>
-                  <td style={{ padding: 8 }}>{r.estado || ''}</td>
-                  <td style={{ padding: 8 }}>
-                    <button onClick={() => openView(r.id)} className="btn-opaque" style={{ marginRight: 6 }}>Ver</button>
-                    <button onClick={() => reprintRow(r.id)} className="btn-opaque" style={{ marginRight: 6 }}>Reimprimir</button>
-                    {String(r.estado || '').toLowerCase() === 'aceptada' ? (
-                      <button className="btn-opaque" style={{ marginRight: 6, opacity: 0.6, cursor: 'not-allowed' }} disabled title="No se puede editar una cotización aceptada">Editar</button>
-                    ) : (
-                      <button onClick={() => openEdit(r)} className="btn-opaque" style={{ marginRight: 6 }}>Editar</button>
-                    )}
-                    <button onClick={() => deleteRow(r.id)} className="btn-opaque" style={{ background: '#ef4444', color: 'white' }}>Eliminar</button>
-                  </td>
-                </tr>
-              ))}
+                  <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '16px 24px', fontWeight: 500, color: '#1e293b' }}>{r.numero_cotizacion || (r as any)['Número'] || ''}</td>
+                    <td style={{ padding: '16px 24px', color: '#64748b' }}>{r.fecha_cotizacion ? new Date(r.fecha_cotizacion).toLocaleString() : ''}</td>
+                    <td style={{ padding: '16px 24px', color: '#64748b' }}>{r.usuario || ''}</td>
+                    <td style={{ padding: '16px 24px', color: '#64748b' }}>{(r as any).cliente_nombre || ((r as any).cliente_id ? String((r as any).cliente_id) : 'Consumidor Final')}</td>
+                    <td style={{ padding: '16px 24px', fontWeight: 600, color: '#1e293b' }}>L {Number(r.total || 0).toFixed(2)}</td>
+                    <td style={{ padding: '16px 24px' }}>
+                      <span style={{
+                        padding: '4px 10px',
+                        borderRadius: 9999,
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        background: String(r.estado || '').toLowerCase() === 'aceptada' ? '#dcfce7' : '#f1f5f9',
+                        color: String(r.estado || '').toLowerCase() === 'aceptada' ? '#166534' : '#475569'
+                      }}>
+                        {r.estado || 'Pendiente'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                        <button onClick={() => openView(r.id)} className="btn-opaque" style={{ padding: '6px 12px', fontSize: '12px' }}>Ver</button>
+                        <button onClick={() => reprintRow(r.id)} className="btn-opaque" style={{ padding: '6px 12px', fontSize: '12px' }}>Imprimir</button>
+                        {String(r.estado || '').toLowerCase() === 'aceptada' ? (
+                          <button className="btn-opaque" style={{ padding: '6px 12px', fontSize: '12px', opacity: 0.5, cursor: 'not-allowed' }} disabled>Editar</button>
+                        ) : (
+                          <button onClick={() => openEdit(r)} className="btn-opaque" style={{ padding: '6px 12px', fontSize: '12px' }}>Editar</button>
+                        )}
+                        <button onClick={() => deleteRow(r.id)} className="btn-opaque" style={{ padding: '6px 12px', fontSize: '12px', background: '#fee2e2', color: '#ef4444' }}>Eliminar</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         )}
@@ -350,109 +386,150 @@ export default function CotizacionesGuardadas({ onBack }: { onBack: () => void }
 
       {/* Modal Ver */}
       {viewOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ width: 880, maxWidth: '95%', background: 'white', borderRadius: 10, padding: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0 }}>Detalle de Cotización #{selectedId}</h3>
+        <ModalWrapper open={viewOpen} onClose={() => { setViewOpen(false); setDetalles([]); setSelectedId(null) }} width={880}>
+          <div style={{ padding: '0 8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h3 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>Detalle de Cotización #{selectedId}</h3>
               <button onClick={() => { setViewOpen(false); setDetalles([]); setSelectedId(null) }} className="btn-opaque">Cerrar</button>
             </div>
-            <div style={{ marginTop: 12 }}>
-              {viewHeader && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+
+            {viewHeader && (
+              <div style={{ background: '#f8fafc', padding: 20, borderRadius: 12, marginBottom: 24 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
                   <div>
-                    <div><strong>Número:</strong> {viewHeader.numero_cotizacion || (viewHeader as any)['Número'] || ''}</div>
-                    <div><strong>Fecha:</strong> {viewHeader.fecha_cotizacion ? new Date(viewHeader.fecha_cotizacion).toLocaleString() : ''}</div>
-                    <div><strong>Usuario:</strong> {viewHeader.usuario}</div>
-                    <div><strong>Cliente:</strong> {viewClientName ?? (viewHeader.cliente_id ? String((viewHeader as any).cliente_id) : 'C/F')}</div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: 4 }}>NÚMERO</div>
+                    <div style={{ fontWeight: 600, color: '#1e293b' }}>{viewHeader.numero_cotizacion || (viewHeader as any)['Número'] || ''}</div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div><strong>Subtotal:</strong> L {Number(viewHeader.subtotal || 0).toFixed(2)}</div>
-                    <div><strong>Impuesto:</strong> L {Number(viewHeader.impuesto || 0).toFixed(2)}</div>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 800 }}><strong>Total:</strong> L {Number(viewHeader.total || 0).toFixed(2)}</div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: 4 }}>FECHA</div>
+                    <div style={{ fontWeight: 600, color: '#1e293b' }}>{viewHeader.fecha_cotizacion ? new Date(viewHeader.fecha_cotizacion).toLocaleString() : ''}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: 4 }}>CLIENTE</div>
+                    <div style={{ fontWeight: 600, color: '#1e293b' }}>{viewClientName ?? (viewHeader.cliente_id ? String((viewHeader as any).cliente_id) : 'Consumidor Final')}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginBottom: 4 }}>USUARIO</div>
+                    <div style={{ fontWeight: 600, color: '#1e293b' }}>{viewHeader.usuario}</div>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
+
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', marginBottom: 24 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ textAlign: 'left', borderBottom: '1px solid #e6edf3' }}>
-                    <th style={{ padding: 8 }}>Descripción</th>
-                    <th style={{ padding: 8 }}>Cantidad</th>
-                    <th style={{ padding: 8 }}>Precio U.</th>
-                    <th style={{ padding: 8 }}>Subtotal</th>
-                    <th style={{ padding: 8 }}>Descuento</th>
-                    <th style={{ padding: 8 }}>Total</th>
+                  <tr style={{ textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 600 }}>DESCRIPCIÓN</th>
+                    <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 600, textAlign: 'right' }}>CANTIDAD</th>
+                    <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 600, textAlign: 'right' }}>PRECIO U.</th>
+                    <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 600, textAlign: 'right' }}>SUBTOTAL</th>
+                    <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 600, textAlign: 'right' }}>TOTAL</th>
                   </tr>
                 </thead>
                 <tbody>
                   {detalles.map((d, idx) => (
-                    <tr key={idx} style={{ borderBottom: '1px solid #f8fafc' }}>
-                      <td style={{ padding: 8 }}>{d.descripcion}</td>
-                      <td style={{ padding: 8 }}>{d.cantidad}</td>
-                      <td style={{ padding: 8 }}>L {Number(d.precio_unitario || 0).toFixed(2)}</td>
-                      <td style={{ padding: 8 }}>L {Number(d.subtotal || ((d.precio_unitario || 0) * (d.cantidad || 0))).toFixed(2)}</td>
-                      <td style={{ padding: 8 }}>L {Number(d.descuento || 0).toFixed(2)}</td>
-                      <td style={{ padding: 8 }}>L {Number(d.total || ((d.subtotal || 0) - (d.descuento || 0))).toFixed(2)}</td>
+                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '12px 16px', color: '#1e293b' }}>{d.descripcion}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right', color: '#64748b' }}>{d.cantidad}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right', color: '#64748b' }}>L {Number(d.precio_unitario || 0).toFixed(2)}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right', color: '#64748b' }}>L {Number(d.subtotal || ((d.precio_unitario || 0) * (d.cantidad || 0))).toFixed(2)}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>L {Number(d.total || ((d.subtotal || 0) - (d.descuento || 0))).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
+            {viewHeader && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <div style={{ width: 280, background: '#f8fafc', padding: 16, borderRadius: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ color: '#64748b' }}>Subtotal:</span>
+                    <span style={{ fontWeight: 500 }}>L {Number(viewHeader.subtotal || 0).toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ color: '#64748b' }}>Impuesto:</span>
+                    <span style={{ fontWeight: 500 }}>L {Number(viewHeader.impuesto || 0).toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid #e2e8f0' }}>
+                    <span style={{ fontWeight: 700, color: '#1e293b' }}>Total:</span>
+                    <span style={{ fontWeight: 700, color: '#1e293b', fontSize: '16px' }}>L {Number(viewHeader.total || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        </ModalWrapper>
       )}
 
       {/* Modal Editar */}
       {editOpen && editRow && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,6,23,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ width: 880, maxWidth: '95%', background: 'white', borderRadius: 10, padding: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0 }}>Editar Cotización #{editRow.id}</h3>
+        <ModalWrapper open={editOpen} onClose={() => { setEditOpen(false); setDetalles([]); setEditRow(null) }} width={880}>
+          <div style={{ padding: '0 8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h3 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>Editar Cotización #{editRow.id}</h3>
               <button onClick={() => { setEditOpen(false); setDetalles([]); setEditRow(null) }} className="btn-opaque">Cerrar</button>
             </div>
-            <div style={{ marginTop: 12 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <div>
-                  <label>Cliente</label>
-                  <input value={editRow.cliente || ''} onChange={e => setEditRow({ ...editRow, cliente: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6edf3' }} />
-                </div>
-                <div>
-                  <label>RTN</label>
-                  <input value={editRow.rtn || ''} onChange={e => setEditRow({ ...editRow, rtn: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6edf3' }} />
-                </div>
-              </div>
 
-              <div style={{ marginTop: 12 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ textAlign: 'left', borderBottom: '1px solid #e6edf3' }}>
-                      <th style={{ padding: 8 }}>SKU</th>
-                      <th style={{ padding: 8 }}>Nombre</th>
-                      <th style={{ padding: 8 }}>Cantidad</th>
-                      <th style={{ padding: 8 }}>Precio</th>
-                      <th style={{ padding: 8 }}>Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detalles.map((d, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f8fafc' }}>
-                        <td style={{ padding: 8 }}>{d.sku}</td>
-                        <td style={{ padding: 8 }}>{d.nombre}</td>
-                        <td style={{ padding: 8 }}><input type="number" value={d.cantidad || 0} onChange={e => { const v = Number(e.target.value || 0); const copy = [...detalles]; copy[idx] = { ...copy[idx], cantidad: v }; setDetalles(copy) }} style={{ width: 80, padding: 6 }} /></td>
-                        <td style={{ padding: 8 }}><input type="number" value={d.precio_unitario || 0} onChange={e => { const v = Number(e.target.value || 0); const copy = [...detalles]; copy[idx] = { ...copy[idx], precio_unitario: v }; setDetalles(copy) }} style={{ width: 120, padding: 6 }} /></td>
-                        <td style={{ padding: 8 }}>L {Number((d.precio_unitario || 0) * (d.cantidad || 0)).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, color: '#475569' }}>Cliente</label>
+                <input value={editRow.cliente || ''} onChange={e => setEditRow({ ...editRow, cliente: e.target.value })} className="input" />
               </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-                <button onClick={() => { setEditOpen(false); setDetalles([]); setEditRow(null) }} className="btn-opaque" style={{ background: 'transparent' }}>Cancelar</button>
-                <button onClick={saveEdit} className="btn-opaque" style={{ background: '#2563eb', color: 'white' }}>Guardar cambios</button>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, color: '#475569' }}>RTN</label>
+                <input value={editRow.rtn || ''} onChange={e => setEditRow({ ...editRow, rtn: e.target.value })} className="input" />
               </div>
             </div>
+
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', marginBottom: 24 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 600 }}>SKU</th>
+                    <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 600 }}>NOMBRE</th>
+                    <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 600 }}>CANTIDAD</th>
+                    <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 600 }}>PRECIO</th>
+                    <th style={{ padding: '12px 16px', fontSize: '12px', color: '#64748b', fontWeight: 600 }}>SUBTOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detalles.map((d, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '12px 16px' }}>{d.sku}</td>
+                      <td style={{ padding: '12px 16px' }}>{d.nombre}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <input
+                          type="number"
+                          value={d.cantidad || 0}
+                          onChange={e => { const v = Number(e.target.value || 0); const copy = [...detalles]; copy[idx] = { ...copy[idx], cantidad: v }; setDetalles(copy) }}
+                          className="input"
+                          style={{ width: 80, padding: '4px 8px' }}
+                        />
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <input
+                          type="number"
+                          value={d.precio_unitario || 0}
+                          onChange={e => { const v = Number(e.target.value || 0); const copy = [...detalles]; copy[idx] = { ...copy[idx], precio_unitario: v }; setDetalles(copy) }}
+                          className="input"
+                          style={{ width: 100, padding: '4px 8px' }}
+                        />
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>L {Number((d.precio_unitario || 0) * (d.cantidad || 0)).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button onClick={() => { setEditOpen(false); setDetalles([]); setEditRow(null) }} className="btn-opaque">Cancelar</button>
+              <button onClick={saveEdit} className="btn-primary">Guardar cambios</button>
+            </div>
           </div>
-        </div>
+        </ModalWrapper>
       )}
 
     </div>
