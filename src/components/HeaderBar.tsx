@@ -264,7 +264,7 @@ export default function HeaderBar({
                   textAlign: "left",
                 }}
               >
-                Corte de caja parcial
+                Corte de caja
               </button>
               <button
                 onClick={() => {

@@ -667,7 +667,7 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
         }}
       >
         <div>
-          <h2 style={{ margin: 0 }}>Corte de Caja Parcial</h2>
+          <h2 style={{ margin: 0 }}>Datos de caja </h2>
           <div style={{ color: "#64748b", fontSize: 14 }}>
             Sesión iniciada el:{" "}
             {new Date(session.fecha_apertura).toLocaleString()} por{" "}
