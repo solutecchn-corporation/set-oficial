@@ -87,7 +87,13 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
       await Promise.allSettled(reloadPromises)
 
       const user = session.usuario
-      const since = session.fecha_apertura
+      let since = session.fecha_apertura
+      // Ensure since has timezone offset if missing (assume Honduras -06:00)
+      if (since && !since.includes('Z') && !since.includes('+') && !since.match(/-\d\d:\d\d$/)) {
+        since = `${since}-06:00`
+      }
+      // Convert to ISO string to ensure consistent UTC comparison in Supabase
+      const sinceIso = since ? new Date(since).toISOString() : null
 
       // 1. Fetch Pagos (Income & Cancellations)
       // First fetch relevant sales IDs to avoid relying on 'ventas!inner' join which needs explicit FK
@@ -95,7 +101,7 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
         .from('ventas')
         .select('id')
         .eq('usuario', user)
-        .gte('fecha_venta', since)
+        .gte('fecha_venta', sinceIso)
 
       if (vErr) console.error('Error fetching ventas for ids:', vErr)
 

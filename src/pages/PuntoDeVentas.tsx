@@ -6,6 +6,7 @@ import PedidosEnLinea from './PedidosEnLinea'
 import CorteCajaParcial from './CorteCajaParcial'
 import CorteCajaTotal from './CorteCajaTotal'
 import AnulacionFactura from './AnulacionFactura'
+import useCajaSession from '../hooks/useCajaSession'
 import supabase from '../lib/supabaseClient'
 import ClienteSearchModal from '../components/ClienteSearchModal'
 import PaymentModal from '../components/PaymentModal'
@@ -52,6 +53,8 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev || ''; };
   }, []);
+  const { session } = useCajaSession()
+  const [noSessionModalOpen, setNoSessionModalOpen] = useState(false)
   const [productos, setProductos] = useState<Producto[]>([]);
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
   const [busqueda, setBusqueda] = useState('');
@@ -131,6 +134,10 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
   })
 
   const agregarAlCarrito = (producto: Producto) => {
+    if (!session) {
+      setNoSessionModalOpen(true)
+      return
+    }
     const stockNum = Number(producto.stock ?? 0)
     const precioNum = Number(producto.precio ?? 0)
     if (stockNum < 1) return;
@@ -1977,6 +1984,36 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
       />
 
       <DatosFacturaModal open={datosFacturaOpen} onClose={() => setDatosFacturaOpen(false)} caiInfo={caiInfoState} onRefresh={refreshCaiInfo} />
+
+      {/* Modal: No Session Warning */}
+      {noSessionModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000 }}>
+          <div style={{ background: 'white', padding: 24, borderRadius: 12, width: 400, textAlign: 'center', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+            <h3 style={{ margin: '0 0 12px 0', color: '#1e293b' }}>Caja Cerrada</h3>
+            <p style={{ color: '#64748b', marginBottom: 24, lineHeight: 1.5 }}>
+              Debes realizar la apertura de caja antes de poder realizar ventas.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
+              <button
+                className="btn-opaque"
+                onClick={() => setNoSessionModalOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setNoSessionModalOpen(false)
+                  setView('CorteCajaParcial')
+                }}
+              >
+                Ir a Apertura
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

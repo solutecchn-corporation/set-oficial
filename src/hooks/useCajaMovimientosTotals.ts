@@ -17,10 +17,18 @@ export default function useCajaMovimientosTotals(fechaDesde?: string | null, usu
         return
       }
 
+      // Ensure fechaDesde has timezone offset if missing (assume Honduras -06:00)
+      let since = fechaDesde
+      if (since && !since.includes('Z') && !since.includes('+') && !since.match(/-\d\d:\d\d$/)) {
+        since = `${since}-06:00`
+      }
+      // Convert to ISO string to ensure consistent UTC comparison in Supabase
+      const sinceIso = since ? new Date(since).toISOString() : null
+
       const { data: rows, error: qErr } = await supabase
         .from('caja_movimientos')
         .select('tipo_movimiento, monto')
-        .gte('fecha', fechaDesde)
+        .gte('fecha', sinceIso)
         .eq('usuario', usuario)
 
       if (qErr) {

@@ -31,11 +31,19 @@ export default function useDataPagos(fechaDesde?: string | null) {
         console.error('Error parsing user from localStorage', e)
       }
 
+      // Ensure fechaDesde has timezone offset if missing (assume Honduras -06:00)
+      let since = fechaDesde
+      if (since && !since.includes('Z') && !since.includes('+') && !since.match(/-\d\d:\d\d$/)) {
+        since = `${since}-06:00`
+      }
+      // Convert to ISO string to ensure consistent UTC comparison in Supabase
+      const sinceIso = since ? new Date(since).toISOString() : null
+
       // Build query
       let query = supabase
         .from('pagos')
         .select('tipo, monto, valor_moneda, created_at')
-        .gte('created_at', fechaDesde)
+        .gte('created_at', sinceIso)
 
       // Apply user filter if we have user info
       if (loggedInUserName && loggedInUserId) {

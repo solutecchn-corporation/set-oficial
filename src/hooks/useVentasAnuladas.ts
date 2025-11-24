@@ -46,13 +46,21 @@ export default function useVentasAnuladas(fechaDesde?: string | null, usuario?: 
         return
       }
 
+      // Ensure fechaDesde has timezone offset if missing (assume Honduras -06:00)
+      let since = fechaDesde
+      if (since && !since.includes('Z') && !since.includes('+') && !since.match(/-\d\d:\d\d$/)) {
+        since = `${since}-06:00`
+      }
+      // Convert to ISO string to ensure consistent UTC comparison in Supabase
+      const sinceIso = since ? new Date(since).toISOString() : null
+
       // 2. fetch ventas annuladas among those ventaIds and after fechaDesde
       const { data: ventas, error: vErr } = await supabase
         .from('ventas')
         .select('id')
         .in('id', ventaIds)
         .eq('estado', 'Anulada')
-        .gte('fecha_venta', fechaDesde)
+        .gte('fecha_venta', sinceIso)
 
       if (vErr) {
         setError(vErr)

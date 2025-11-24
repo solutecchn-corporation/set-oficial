@@ -19,13 +19,21 @@ export default function usePagosTotals(fechaDesde?: string | null, usuario?: str
       return
     }
     setLoading(true)
+    // Ensure fechaDesde has timezone offset if missing (assume Honduras -06:00)
+    let since = fechaDesde
+    if (since && !since.includes('Z') && !since.includes('+') && !since.match(/-\d\d:\d\d$/)) {
+      since = `${since}-06:00`
+    }
+    // Convert to ISO string to ensure consistent UTC comparison in Supabase
+    const sinceIso = since ? new Date(since).toISOString() : null
+
     try {
       // 1) Buscar ventas del usuario a partir de la fecha
       const { data: ventas, error: vErr } = await supabase
         .from('ventas')
         .select('id')
         .eq('usuario', usuario)
-        .gte('fecha_venta', fechaDesde)
+        .gte('fecha_venta', sinceIso)
 
       if (vErr) {
         console.debug('usePagosTotals: error fetching ventas', vErr)
