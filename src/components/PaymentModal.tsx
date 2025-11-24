@@ -26,7 +26,7 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
   { open: boolean, onClose: () => void, totalDue: number, onConfirm: (p: PaymentPayload) => void, exchangeRate: number }) {
   const [pagos, setPagos] = useState<PagoItem[]>([])
   const [tipo, setTipo] = useState<'efectivo' | 'tarjeta' | 'transferencia' | 'dolares'>('efectivo')
-  const [monto, setMonto] = useState<number>(0)
+  const [monto, setMonto] = useState<string>('')
   const [banco, setBanco] = useState<string>('')
   const [tarjeta, setTarjeta] = useState<string>('')
   const [factura, setFactura] = useState<string>('')
@@ -41,7 +41,7 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
       // limpiar formulario y lista al cerrar
       setPagos([])
       setTipo('efectivo')
-      setMonto(0)
+      setMonto('')
       setBanco('')
       setTarjeta('')
       setFactura('')
@@ -53,8 +53,14 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
   }, [open])
 
   const parseNumber = (v: any) => {
-    const n = Number(v)
-    return Number.isFinite(n) ? Number(n.toFixed(2)) : 0
+    try {
+      const s = String(v ?? "").replace(',', '.').trim()
+      if (s === "" || s === "-") return 0
+      const n = parseFloat(s)
+      return Number.isFinite(n) ? n : 0
+    } catch (e) {
+      return 0
+    }
   }
 
   const agregarPago = () => {
@@ -63,7 +69,7 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
     const nuevo: PagoItem = {
       id: String(Date.now()) + Math.random().toString(36).slice(2, 7),
       tipo,
-      monto: montoN,
+      monto: Number(montoN.toFixed(2)),
       usd_monto: tipo === 'dolares' ? Number((usdAmount || 0).toFixed(2)) : undefined,
       banco: banco || undefined,
       tarjeta: tarjeta || undefined,
@@ -73,7 +79,7 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
     }
     setPagos(prev => [...prev, nuevo])
     // reset del formulario parcial
-    setMonto(0); setBanco(''); setTarjeta(''); setFactura(''); setAutorizador(''); setReferencia('')
+    setMonto(''); setBanco(''); setTarjeta(''); setFactura(''); setAutorizador(''); setReferencia('')
   }
 
   const eliminarPago = (id: string) => {
@@ -198,7 +204,7 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
           <div style={{ border: '1px solid #e6edf3', borderRadius: 8, padding: 10, fontSize: 13 }}>
             <div style={{ marginBottom: 8 }}>
               <label style={{ display: 'block', marginBottom: 6 }}>Tipo de pago</label>
-              <select value={tipo} onChange={e => { setTipo(e.target.value as any); setMonto(0); setUsdAmount(0); setBanco(''); setTarjeta(''); setFactura(''); setAutorizador(''); setReferencia('') }} style={{ width: '100%', padding: 6, borderRadius: 6, fontSize: 13 }}>
+              <select value={tipo} onChange={e => { setTipo(e.target.value as any); setMonto(''); setUsdAmount(0); setBanco(''); setTarjeta(''); setFactura(''); setAutorizador(''); setReferencia('') }} style={{ width: '100%', padding: 6, borderRadius: 6, fontSize: 13 }}>
                 <option value="efectivo">Efectivo</option>
                 <option value="tarjeta">Tarjeta</option>
                 <option value="transferencia">Transferencia</option>
@@ -216,7 +222,7 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
                       const v = parseNumber(e.target.value)
                       setUsdAmount(v)
                       const converted = Number((v * exchangeRate).toFixed(2))
-                      setMonto(converted)
+                      setMonto(String(converted))
                     }} style={{ width: '100%', padding: 6, borderRadius: 6, fontSize: 13 }} />
                   </div>
                   <div>
@@ -225,7 +231,7 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
                   </div>
                 </div>
               ) : (
-                <input type="number" min={0} step="0.01" value={monto} onChange={e => setMonto(parseNumber(e.target.value))} style={{ width: '100%', padding: 6, borderRadius: 6, fontSize: 13 }} />
+                <input type="number" min={0} step="0.01" value={monto} onChange={e => setMonto(e.target.value)} style={{ width: '100%', padding: 6, borderRadius: 6, fontSize: 13 }} />
               )}
             </div>
 
@@ -311,7 +317,7 @@ export default function PaymentModal({ open, onClose, totalDue, onConfirm, excha
 
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <button onClick={agregarPago} className="btn-opaque" style={{ background: '#0ea5a4', color: 'white', padding: '6px 10px', borderRadius: 6, fontSize: 13 }}>Agregar</button>
-              <button onClick={() => { setMonto(totalDue - totalPaid) }} className="btn-opaque" style={{ background: 'transparent', fontSize: 13 }}>Exacto</button>
+              <button onClick={() => { setMonto(String((totalDue - totalPaid).toFixed(2))) }} className="btn-opaque" style={{ background: 'transparent', fontSize: 13 }}>Exacto</button>
             </div>
           </div>
         </div>

@@ -8,7 +8,6 @@ import usePagosTotals from "../hooks/usePagosTotals";
 import usePagosVentasAnuladas from "../hooks/usePagosVentasAnuladas";
 import useDataPagos from "../hooks/useDataPagos";
 import useCajaMovimientosTotals from "../hooks/useCajaMovimientosTotals";
-import useVentasAnuladas from "../hooks/useVentasAnuladas";
 import useDataDevoluciones from "../hooks/useDataDevoluciones";
 import getCompanyData from "../lib/getCompanyData";
 
@@ -85,12 +84,6 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
     error: cajaMovsError,
     reload: reloadCajaMovs,
   } = useCajaMovimientosTotals(fechaDesdePagos, session?.usuario ?? null);
-  const {
-    data: ventasAnuladas,
-    loading: ventasAnuladasLoading,
-    error: ventasAnuladasError,
-    reload: reloadVentasAnuladas,
-  } = useVentasAnuladas(fechaDesdePagos, session?.usuario ?? null);
 
   // extract potential usuario id from localStorage user object (if present)
   let usuarioIdForQuery: string | number | null = null;
@@ -153,8 +146,7 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
         reloadPromises.push(reloadDataPagos());
       if (typeof reloadCajaMovs === "function")
         reloadPromises.push(reloadCajaMovs());
-      if (typeof reloadVentasAnuladas === "function")
-        reloadPromises.push(reloadVentasAnuladas());
+
       if (typeof reloadDevoluciones === "function")
         reloadPromises.push(reloadDevoluciones());
       if (typeof reloadPagosVentasAnuladas === "function")
@@ -434,15 +426,16 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
     });
   }
 
-  // anulaciones from ventasAnuladas
+  // anulaciones: calcular usando los pagos asociados a ventas anuladas
+  // usePagosVentasAnuladas ya devuelve agregación por `tipo` sumando los `monto` de la tabla `pagos`
   const anulacionesByCat: Record<string, number> = {
     efectivo: 0,
     dolares: 0,
     tarjeta: 0,
     transferencia: 0,
   };
-  if (Array.isArray(ventasAnuladas)) {
-    ventasAnuladas.forEach((r: any) => {
+  if (Array.isArray(pagosVentasAnuladas)) {
+    pagosVentasAnuladas.forEach((r: any) => {
       const key = String(r.tipo || "").toLowerCase();
       const cat = normalizeTipo(key);
       const monto = Number(r.total_monto || 0);
@@ -1187,8 +1180,7 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
               toReload.push(reloadDataPagos());
             if (typeof reloadCajaMovs === "function")
               toReload.push(reloadCajaMovs());
-            if (typeof reloadVentasAnuladas === "function")
-              toReload.push(reloadVentasAnuladas());
+
             if (typeof reloadDevoluciones === "function")
               toReload.push(reloadDevoluciones());
             if (typeof reloadPagosVentasAnuladas === "function")

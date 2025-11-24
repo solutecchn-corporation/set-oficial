@@ -4,7 +4,6 @@ import IngresoEfectivo from "./IngresoEfectivo";
 import CotizacionesGuardadas from "./CotizacionesGuardadas";
 import PedidosEnLinea from "./PedidosEnLinea";
 import CorteCajaParcial from "./CorteCajaParcial";
-import CorteCajaTotal from "./CorteCajaTotal";
 import AnulacionFactura from "./AnulacionFactura";
 import useCajaSession from "../hooks/useCajaSession";
 import supabase from "../lib/supabaseClient";
@@ -2739,8 +2738,7 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
       return <PedidosEnLinea onBack={() => setView(null)} />;
     if (view === "CorteCajaParcial")
       return <CorteCajaParcial onBack={() => setView(null)} />;
-    if (view === "CorteCajaTotal")
-      return <CorteCajaTotal onBack={() => setView(null)} />;
+
     if (view === "AnulacionFactura")
       return <AnulacionFactura onBack={() => setView(null)} />;
   }

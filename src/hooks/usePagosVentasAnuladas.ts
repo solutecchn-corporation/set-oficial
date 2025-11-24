@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import supabase from "../lib/supabaseClient";
 
-type Row = { tipo: string; num_ventas_anuladas: number; total_monto: number };
+type Row = { tipo: string; total_monto: number };
 
 export default function usePagosVentasAnuladas(
   fechaDesde?: string | null,
@@ -16,87 +16,90 @@ export default function usePagosVentasAnuladas(
     setLoading(true);
     setError(null);
     try {
-      if (!usuarioNombre && (usuarioId == null || usuarioId === "")) {
+      if (!fechaDesde) {
         setData([]);
         return;
       }
 
-      // 1) fetch ventas anuladas (apply fecha filter if provided)
-      let ventasQuery = supabase.from("ventas").select("id");
-      ventasQuery = ventasQuery.eq("estado", "Anulada");
-      // Normalize fechaDesde to ISO instant similar to other hooks
+      // Normalize fechaDesde to include timezone if missing (assume Honduras -06:00)
       let since = fechaDesde;
-      if (
-        since &&
-        !since.includes("Z") &&
-        !since.includes("+") &&
-        !since.match(/-\d\d:\d\d$/)
-      ) {
+      if (since && !since.includes("Z") && !since.includes("+") && !since.match(/-\d\d:\d\d$/)) {
         since = `${since}-06:00`;
       }
       const sinceIso = since ? new Date(since).toISOString() : null;
+
+      // 1) obtener ids de ventas anuladas desde fecha
+      let ventasQuery = supabase.from("ventas").select("id").ilike("estado", "%anulad%");
       if (sinceIso) ventasQuery = ventasQuery.gte("fecha_venta", sinceIso);
+      if (usuarioNombre) ventasQuery = ventasQuery.eq("usuario", usuarioNombre);
+
       const { data: ventasRows, error: ventasErr } = await ventasQuery;
-      if (ventasErr) {
-        setError(ventasErr);
-        setData([]);
-        return;
-      }
-      const ventaIds = Array.isArray(ventasRows)
-        ? ventasRows.map((v: any) => String(v.id))
-        : [];
-      if (ventaIds.length === 0) {
+      if (ventasErr) throw ventasErr;
+
+      const ventaIdsRaw = Array.isArray(ventasRows) ? ventasRows.map((v: any) => v.id).filter(Boolean) : [];
+      if (ventaIdsRaw.length === 0) {
         setData([]);
         return;
       }
 
-      // 2) fetch pagos that reference those ventas, match usuario filters and monto > 0
+      // Normalizar ids para la consulta IN
+      const ventaIds = ventaIdsRaw.every((id: any) => !Number.isNaN(Number(id)))
+        ? ventaIdsRaw.map((id: any) => Number(id))
+        : ventaIdsRaw.map((id: any) => String(id));
+
+      // 2) obtener pagos relacionados con esas ventas y agregarlos por tipo
       let pagosQuery = supabase
         .from("pagos")
-        .select("tipo, monto, venta_id")
-        .in("venta_id", ventaIds)
-        .gt("monto", 0);
+        .select("tipo, monto, valor_moneda, created_at")
+        .in("venta_id", ventaIds);
 
-      if (usuarioNombre)
-        pagosQuery = pagosQuery.eq("usuario_nombre", usuarioNombre);
-      // usuarioId may be numeric or string; only apply if provided
-      if (usuarioId != null && usuarioId !== "") {
-        // try numeric compare first
+      // Aplicar filtro por fecha de creación (similar a useDataPagos)
+      if (sinceIso) pagosQuery = pagosQuery.gte("created_at", sinceIso as any);
+
+      // Aplicar filtro por usuario si se proporciona
+      if (usuarioNombre && (usuarioId || usuarioId === 0)) {
         const asNumber = Number(usuarioId);
-        if (!Number.isNaN(asNumber))
-          pagosQuery = pagosQuery.eq("usuario_id", asNumber);
-        else pagosQuery = pagosQuery.eq("usuario_id", usuarioId);
+        if (!Number.isNaN(asNumber)) {
+          pagosQuery = pagosQuery.or(`usuario_nombre.eq.${usuarioNombre},usuario_id.eq.${asNumber}`);
+        } else {
+          pagosQuery = pagosQuery.eq("usuario_nombre", usuarioNombre);
+        }
+      } else if (usuarioNombre) {
+        pagosQuery = pagosQuery.eq("usuario_nombre", usuarioNombre);
+      } else if (usuarioId != null && usuarioId !== "") {
+        pagosQuery = pagosQuery.eq("usuario_id", usuarioId as any);
       }
 
       const { data: pagosRows, error: pagosErr } = await pagosQuery;
-      if (pagosErr) {
-        setError(pagosErr);
-        setData([]);
-        return;
-      }
+      if (pagosErr) throw pagosErr;
 
-      // 3) aggregate by tipo: count distinct venta_id and sum monto
-      const map: Record<string, { ventas: Set<string>; total: number }> = {};
+      const map: Record<string, number> = {};
       if (Array.isArray(pagosRows)) {
         pagosRows.forEach((p: any) => {
-          const tipo = String(p.tipo || "desconocido");
-          const monto = Number(p.monto || 0);
-          const vid = String(p.venta_id || "");
-          if (!map[tipo]) map[tipo] = { ventas: new Set<string>(), total: 0 };
-          if (vid) map[tipo].ventas.add(vid);
-          map[tipo].total += monto;
+          const tipo = (p.tipo || "desconocido").toString();
+          let monto = Number(p.monto || 0);
+          try {
+            const t = tipo.toLowerCase();
+            if (t.includes("dolar") || t.includes("usd")) {
+              const vm = (p.valor_moneda || "").toString();
+              const m = vm.match(/=\s*([0-9.,]+)/);
+              if (m && m[1]) {
+                const factor = Number(String(m[1]).replace(/,/g, ".")) || 0;
+                if (factor > 0) monto = Number((monto / factor).toFixed(6));
+              }
+            }
+          } catch (e) {
+            // mantener monto original en caso de error
+          }
+          map[tipo] = (map[tipo] || 0) + monto;
         });
       }
 
-      const out: Row[] = Object.keys(map)
+      const rows: Row[] = Object.keys(map)
         .sort()
-        .map((k) => ({
-          tipo: k,
-          num_ventas_anuladas: map[k].ventas.size,
-          total_monto: Number(map[k].total.toFixed(2)),
-        }));
+        .map((k) => ({ tipo: k, total_monto: map[k] }));
 
-      setData(out);
+      setData(rows);
     } catch (e) {
       setError(e);
       setData([]);
