@@ -93,7 +93,20 @@ export default function useCajaSession() {
         }
     }
 
-    const closeSession = async (finalData: { total_ingresos: number, total_egresos: number, saldo_final: number }) => {
+    const closeSession = async (finalData: {
+        total_ingresos: number,
+        total_egresos: number,
+        saldo_final: number,
+        efectivo_obtenido?: number,
+        dolares_obtenido?: number,
+        tarjeta_obtenido?: number,
+        transferencia_obtenido?: number,
+        efectivo_registrado?: number,
+        dolares_registrado?: number,
+        tarjeta_registrado?: number,
+        transferencia_registrado?: number,
+        diferencia?: number
+    }) => {
         try {
             if (!session) throw new Error('No hay sesión activa para cerrar')
 

@@ -9,11 +9,22 @@ import useDataPagos from '../hooks/useDataPagos'
 import useCajaMovimientosTotals from '../hooks/useCajaMovimientosTotals'
 import useVentasAnuladas from '../hooks/useVentasAnuladas'
 import useDataDevoluciones from '../hooks/useDataDevoluciones'
+import getCompanyData from '../lib/getCompanyData'
 
 export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
-  const { session, loading: sessionLoading, startSession, refreshSession } = useCajaSession()
+  const { session, loading: sessionLoading, startSession, closeSession } = useCajaSession()
   const [calculating, setCalculating] = useState(false)
   const [startAmount, setStartAmount] = useState<number | ''>('')
+
+  // Closing Modal State
+  const [closeModalOpen, setCloseModalOpen] = useState(false)
+  const [closing, setClosing] = useState(false)
+  const [closeValues, setCloseValues] = useState({
+    efectivo: '',
+    dolares: '',
+    tarjeta: '',
+    transferencia: ''
+  })
 
   // Detailed Breakdowns
   const [ingresos, setIngresos] = useState({ efectivo: 0, tarjeta: 0, transferencia: 0, dolares: 0, total: 0 })
@@ -23,7 +34,7 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
   const [otrosEgresos, setOtrosEgresos] = useState(0) // From caja_movimientos
 
   const { hondurasNowISO } = useHondurasTime()
-  const { totals: devolucionesTotals } = useDevolucionesTotales(session?.fecha_apertura ?? null, session?.usuario ?? null)
+  const { totals: devolucionesTotals, reload: reloadDevoluciones } = useDevolucionesTotales(session?.fecha_apertura ?? null, session?.usuario ?? null)
   const { totals: pagosTotals, loading: pagosLoading, reload: reloadPagos } = usePagosTotals(session?.fecha_apertura ?? null, session?.usuario ?? null)
   // Mostrar agrupación por tipo (suma de monto) — usar la fecha de apertura de la sesión
   const fechaDesdePagos = session?.fecha_apertura ?? null
@@ -45,7 +56,7 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
 
   const { data: pagosVentasAnuladas, loading: pagosVentasAnuladasLoading, error: pagosVentasAnuladasError, reload: reloadPagosVentasAnuladas } = usePagosVentasAnuladas(fechaDesdePagos, usuarioIdForQuery, session?.usuario ?? null)
 
-  const { data: dataDevoluciones, loading: dataDevolucionesLoading, error: dataDevolucionesError, reload: reloadDevoluciones } = useDataDevoluciones(session?.usuario ?? null, usuarioIdForQuery, session?.fecha_apertura ?? null)
+  const { data: dataDevoluciones, loading: dataDevolucionesLoading, error: dataDevolucionesError } = useDataDevoluciones(session?.usuario ?? null, usuarioIdForQuery, session?.fecha_apertura ?? null)
 
   // Debug: mostrar pagosTotals en consola para verificar valores
   React.useEffect(() => {
@@ -64,8 +75,17 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
     if (!session) return
     setCalculating(true)
     try {
-      // ensure pagosTotals are fresh when recalculating
-      try { if (typeof reloadPagos === 'function') await reloadPagos() } catch (e) { console.debug('Error reloading pagosTotals', e) }
+      // ensure all data hooks are fresh when recalculating
+      const reloadPromises = []
+      if (typeof reloadPagos === 'function') reloadPromises.push(reloadPagos())
+      if (typeof reloadDataPagos === 'function') reloadPromises.push(reloadDataPagos())
+      if (typeof reloadCajaMovs === 'function') reloadPromises.push(reloadCajaMovs())
+      if (typeof reloadVentasAnuladas === 'function') reloadPromises.push(reloadVentasAnuladas())
+      if (typeof reloadDevoluciones === 'function') reloadPromises.push(reloadDevoluciones())
+      if (typeof reloadPagosVentasAnuladas === 'function') reloadPromises.push(reloadPagosVentasAnuladas())
+
+      await Promise.allSettled(reloadPromises)
+
       const user = session.usuario
       const since = session.fecha_apertura
 
@@ -174,7 +194,7 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
     }
   }
 
-  const currency = (v: number) => new Intl.NumberFormat('es-HN', { style: 'currency', currency: 'HNL' }).format(v).replace('HNL', 'L')
+  const currencyFmt = (v: number) => new Intl.NumberFormat('es-HN', { style: 'currency', currency: 'HNL' }).format(v).replace('HNL', 'L')
 
   if (sessionLoading) return <div style={{ padding: 20 }}>Cargando sesión...</div>
 
@@ -258,7 +278,176 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
     devolucionesByCat.transferencia = Number(devolucionesTotals.transferencia || 0)
   }
 
-  const currencyFmt = (v: number) => new Intl.NumberFormat('es-HN', { style: 'currency', currency: 'HNL' }).format(v).replace('HNL', 'L')
+  // Calculate Nets for Closing
+  const getNet = (cat: string) => (pagosByCat[cat] || 0) + (cajaIngresos[cat] || 0) - ((cajaEgresos[cat] || 0) + (anulacionesByCat[cat] || 0) + (devolucionesByCat[cat] || 0))
+
+  const handleCloseBox = async () => {
+    if (!confirm('¿Estás seguro de cerrar la caja? Esta acción no se puede deshacer.')) return
+
+    setClosing(true)
+
+    // 1.2s delay for loading effect
+    await new Promise(resolve => setTimeout(resolve, 1200))
+
+    const obtained: Record<string, number> = {
+      efectivo: getNet('efectivo'),
+      dolares: getNet('dolares'),
+      tarjeta: getNet('tarjeta'),
+      transferencia: getNet('transferencia')
+    }
+
+    const registered: Record<string, number> = {
+      efectivo: Number(closeValues.efectivo) || 0,
+      dolares: Number(closeValues.dolares) || 0,
+      tarjeta: Number(closeValues.tarjeta) || 0,
+      transferencia: Number(closeValues.transferencia) || 0
+    }
+
+    const totalObtained = Object.values(obtained).reduce((a, b) => a + b, 0)
+    const totalRegistered = Object.values(registered).reduce((a, b) => a + b, 0)
+    const difference = totalRegistered - totalObtained
+
+    try {
+      // Fetch company data for report
+      const company = await getCompanyData()
+
+      await closeSession({
+        total_ingresos: ingresos.total + otrosIngresos,
+        total_egresos: otrosEgresos + devoluciones.total,
+        saldo_final: totalRegistered, // Using registered amount as final balance
+        efectivo_obtenido: obtained.efectivo,
+        dolares_obtenido: obtained.dolares,
+        tarjeta_obtenido: obtained.tarjeta,
+        transferencia_obtenido: obtained.transferencia,
+        efectivo_registrado: registered.efectivo,
+        dolares_registrado: registered.dolares,
+        tarjeta_registrado: registered.tarjeta,
+        transferencia_registrado: registered.transferencia,
+        diferencia: difference
+      })
+
+      // Generate Report HTML
+      const logoHtml = company?.logoUrl ? `<img src="${company.logoUrl}" class="logo" alt="Logo" />` : ''
+      const now = new Date()
+
+      const reportHtml = `
+        <html>
+        <head>
+          <title>Reporte de Cierre de Caja</title>
+          <style>
+            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; max-width: 800px; margin: 0 auto; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+            .logo { max-height: 80px; margin-bottom: 10px; }
+            .company-name { font-size: 24px; font-weight: bold; margin: 5px 0; color: #2c3e50; }
+            .info { font-size: 13px; color: #7f8c8d; margin-bottom: 2px; }
+            .title { text-align: center; font-size: 20px; font-weight: bold; margin: 30px 0; text-transform: uppercase; letter-spacing: 1px; border: 1px solid #333; padding: 10px; }
+            .session-info { margin-bottom: 30px; font-size: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px; }
+            th, td { border: 1px solid #e0e0e0; padding: 10px; text-align: right; }
+            th { background-color: #f8f9fa; font-weight: bold; text-align: center; color: #2c3e50; }
+            .text-left { text-align: left; }
+            .totals { margin-top: 30px; border-top: 2px solid #333; padding-top: 20px; }
+            .total-row { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 8px; font-size: 14px; }
+            .final-balance { font-size: 18px; margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px; }
+            .signatures { margin-top: 80px; display: flex; justify-content: space-between; }
+            .sig-line { border-top: 1px solid #333; width: 40%; text-align: center; padding-top: 10px; font-size: 13px; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            ${logoHtml}
+            <div class="company-name">${company?.nombre_empresa || 'Nombre Empresa'}</div>
+            <div class="info">${company?.direccion || ''}</div>
+            <div class="info">RTN: ${company?.rtn || 'N/A'} | Tel: ${company?.telefono || ''}</div>
+            <div class="info">${company?.email || ''}</div>
+          </div>
+
+          <div class="title">Reporte de Cierre de Caja</div>
+
+          <div class="session-info">
+            <div><strong>Cajero:</strong> ${session.usuario}</div>
+            <div><strong>ID Sesión:</strong> #${session.id}</div>
+            <div><strong>Apertura:</strong> ${new Date(session.fecha_apertura).toLocaleString()}</div>
+            <div><strong>Cierre:</strong> ${now.toLocaleString()}</div>
+            <div><strong>Monto Inicial:</strong> ${currencyFmt(session.monto_inicial)}</div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th class="text-left">Medio de Pago</th>
+                <th>Sistema (Calc)</th>
+                <th>Registrado (Real)</th>
+                <th>Diferencia</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${categories.map(cat => `
+                <tr>
+                  <td class="text-left" style="text-transform: capitalize">${cat}</td>
+                  <td>${currencyFmt(obtained[cat])}</td>
+                  <td>${currencyFmt(registered[cat])}</td>
+                  <td style="color: ${registered[cat] - obtained[cat] < 0 ? 'red' : 'black'}">${currencyFmt(registered[cat] - obtained[cat])}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            <div class="total-row">
+              <span>Total Ingresos (Sistema):</span>
+              <span>${currencyFmt(ingresos.total + otrosIngresos)}</span>
+            </div>
+            <div class="total-row">
+              <span>Total Egresos (Sistema):</span>
+              <span>${currencyFmt(otrosEgresos + devoluciones.total)}</span>
+            </div>
+            <div class="total-row final-balance">
+              <span>Saldo Final Registrado:</span>
+              <span>${currencyFmt(totalRegistered)}</span>
+            </div>
+             <div class="total-row" style="color: ${difference < 0 ? 'red' : 'black'}">
+              <span>Diferencia Total:</span>
+              <span>${currencyFmt(difference)}</span>
+            </div>
+          </div>
+
+          <div class="signatures">
+            <div class="sig-line">Firma Cajero</div>
+            <div class="sig-line">Firma Supervisor</div>
+          </div>
+
+          <script>
+            // Wait for images to load before printing
+            window.onload = function() { 
+              setTimeout(function() {
+                window.print(); 
+                // Optional: window.close(); 
+              }, 500);
+            }
+          </script>
+        </body>
+        </html>
+      `
+
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        printWindow.document.write(reportHtml)
+        printWindow.document.close()
+      }
+
+      setClosing(false)
+      alert('Caja cerrada correctamente')
+      onBack()
+    } catch (e: any) {
+      setClosing(false)
+      alert('Error al cerrar caja: ' + e.message)
+    }
+  }
 
   return (
     <div style={{ padding: 20, maxWidth: 1000, margin: '24px auto' }}>
@@ -280,9 +469,6 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
       {/* Tabla: Corte de Caja Parcial (resumen por tipo de pago) */}
       <section style={{ marginBottom: 20 }}>
         <h3 style={{ margin: '8px 0' }}>Resumen Parcial - Corte de Caja</h3>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-          <button className="btn-opaque" onClick={() => { reloadDataPagos(); reloadCajaMovs(); if (typeof reloadVentasAnuladas === 'function') reloadVentasAnuladas(); if (typeof reloadDevoluciones === 'function') reloadDevoluciones(); }} disabled={calculating}>Refrescar todo</button>
-        </div>
 
         <div style={{ background: 'white', borderRadius: 8, padding: 12, boxShadow: '0 4px 18px rgba(2,6,23,0.08)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Inter, system-ui, -apple-system' }}>
@@ -323,32 +509,89 @@ export default function CorteCajaParcial({ onBack }: { onBack: () => void }) {
       </section>
 
       {/* Nueva Tabla: Resumen Neto por Medio de Pago */}
-      <section style={{ marginBottom: 20, maxWidth: 400 }}>
-        <h3 style={{ margin: '8px 0', fontSize: 14 }}>Resumen</h3>
-        <div style={{ background: 'white', borderRadius: 6, padding: 8, boxShadow: '0 2px 8px rgba(2,6,23,0.06)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Inter, system-ui, -apple-system', fontSize: 12 }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'left', padding: '6px 8px', color: '#0f172a' }}>Medio de Pago</th>
-                <th style={{ textAlign: 'right', padding: '6px 8px', color: '#0f172a' }}>Total Neto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {categories.map((cat) => {
-                const net = (pagosByCat[cat] || 0) + (cajaIngresos[cat] || 0) - ((cajaEgresos[cat] || 0) + (anulacionesByCat[cat] || 0) + (devolucionesByCat[cat] || 0))
-                return (
-                  <tr key={cat} style={{ borderTop: '1px solid #eef2f7' }}>
-                    <td style={{ padding: '6px 8px', fontWeight: 600, color: '#0b1220', textTransform: 'capitalize' }}>{cat}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: net >= 0 ? '#10b981' : '#ef4444' }}>
-                      {currencyFmt(net)}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+      <section style={{ marginBottom: 20 }}>
+        <h3 style={{ margin: '8px 0', fontSize: 14 }}></h3>
+        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+          <div style={{ background: 'white', borderRadius: 6, padding: 8, boxShadow: '0 2px 8px rgba(2,6,23,0.06)', maxWidth: 400, flex: '0 0 400px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: 'Inter, system-ui, -apple-system', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '6px 8px', color: '#0f172a' }}>Resumen actual--Medio de Pago</th>
+                  <th style={{ textAlign: 'right', padding: '6px 8px', color: '#0f172a' }}>Total Neto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categories.map((cat) => {
+                  const net = (pagosByCat[cat] || 0) + (cajaIngresos[cat] || 0) - ((cajaEgresos[cat] || 0) + (anulacionesByCat[cat] || 0) + (devolucionesByCat[cat] || 0))
+                  return (
+                    <tr key={cat} style={{ borderTop: '1px solid #eef2f7' }}>
+                      <td style={{ padding: '6px 8px', fontWeight: 600, color: '#0b1220', textTransform: 'capitalize' }}>{cat}</td>
+                      <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: net >= 0 ? '#10b981' : '#ef4444' }}>
+                        {currencyFmt(net)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <button
+            className="btn-primary"
+            style={{ fontSize: 14, padding: '12px 24px', height: 'fit-content', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)' }}
+            onClick={() => setCloseModalOpen(true)}
+          >
+            Registrar Corte Total
+          </button>
         </div>
       </section>
+
+      {/* Modal de Cierre de Caja */}
+      {closeModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'white', padding: 24, borderRadius: 12, width: 400, boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: 16 }}>Ingreso de valores</h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Efectivo en Caja</label>
+                <input type="number" className="input" style={{ width: '100%' }} value={closeValues.efectivo} onChange={e => setCloseValues({ ...closeValues, efectivo: e.target.value })} placeholder="0.00" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Dólares en Caja</label>
+                <input type="number" className="input" style={{ width: '100%' }} value={closeValues.dolares} onChange={e => setCloseValues({ ...closeValues, dolares: e.target.value })} placeholder="0.00" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Total Tarjeta (Voucher)</label>
+                <input type="number" className="input" style={{ width: '100%' }} value={closeValues.tarjeta} onChange={e => setCloseValues({ ...closeValues, tarjeta: e.target.value })} placeholder="0.00" />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Total Transferencias</label>
+                <input type="number" className="input" style={{ width: '100%' }} value={closeValues.transferencia} onChange={e => setCloseValues({ ...closeValues, transferencia: e.target.value })} placeholder="0.00" />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
+              <button className="btn-opaque" onClick={() => setCloseModalOpen(false)} disabled={closing}>Cancelar</button>
+              <button className="btn-primary" onClick={handleCloseBox} disabled={closing}>
+                {closing ? 'Cerrando...' : 'Registrar Cierre'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Overlay */}
+      {closing && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(255,255,255,0.8)', zIndex: 2000,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div style={{ width: 40, height: 40, border: '4px solid #e2e8f0', borderTopColor: '#0f172a', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+          <div style={{ marginTop: 16, fontWeight: 600, color: '#0f172a' }}>Procesando Cierre...</div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
 
     </div>
   )
