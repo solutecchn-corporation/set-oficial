@@ -151,6 +151,26 @@ export default function useCajaSession() {
 
       if (error) throw error;
       setSession(null); // Clear active session
+      // Notify the app to refresh global data/hooks when a session is closed
+      try {
+        if (typeof window !== "undefined") {
+          try {
+            window.dispatchEvent(new Event("app:refresh"));
+          } catch (e) {
+            /* ignore */
+          }
+          // small timeout then do a full reload as a fallback to ensure all components refresh
+          setTimeout(() => {
+            try {
+              window.location.reload();
+            } catch (e) {
+              /* ignore */
+            }
+          }, 300);
+        }
+      } catch (e) {
+        // ignore any errors during client-side refresh trigger
+      }
       return data;
     } catch (err: any) {
       console.error("Error closing session:", err);
