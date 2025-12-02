@@ -1012,6 +1012,9 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
       tipo_pago: tipoPagoValue,
       subtotal: Number(subtotal || 0),
       impuesto: Number(isvTotal + imp18Total + impTouristTotal || 0),
+      isv_15: Number(isvTotal || 0),
+      isv_18: Number(imp18Total || 0),
+      isv_4: Number(impTouristTotal || 0),
       total: Number(total || 0),
       estado: "pagada",
       cambio: String(Number(cambioVal).toFixed(2)),
@@ -1067,6 +1070,10 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
         delete minimalPayload.rango_desde;
         delete minimalPayload.rango_hasta;
         delete minimalPayload.fecha_limite_emision;
+        // remove new isv columns if the DB does not have them
+        delete minimalPayload.isv_15;
+        delete minimalPayload.isv_18;
+        delete minimalPayload.isv_4;
         try {
           const res2 = await supabase
             .from("ventas")
@@ -1167,6 +1174,9 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
             p_tipo_pago: tipoPagoValue,
             p_subtotal: Number(subtotal || 0),
             p_impuesto: Number(isvTotal + imp18Total + impTouristTotal || 0),
+            p_isv_15: Number(isvTotal || 0),
+            p_isv_18: Number(imp18Total || 0),
+            p_isv_4: Number(impTouristTotal || 0),
             p_total: Number(total || 0),
             p_cambio: String(Number(cambioVal).toFixed(2)),
             p_detalles: rpcDetalles,
