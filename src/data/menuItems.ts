@@ -26,6 +26,7 @@ export const menuItems: any[] = [
     label: 'Inventario',
     children: [
       { id: 'inventario_productos', label: 'Productos (Inventario)' },
+      { id: 'registro_producto', label: 'Registro de producto' },
       { id: 'precios_productos', label: 'Precios de productos' },
       { id: 'precios_historico', label: 'Histórico de precios' },
       { id: 'stock', label: 'Stock' },

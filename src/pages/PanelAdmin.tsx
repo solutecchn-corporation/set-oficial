@@ -35,6 +35,7 @@ import Proveedores from './adminViews/Proveedores';
 import ComprasMain from './adminViews/ComprasMain';
 import DevolucionesProveedores from './adminViews/DevolucionesProveedores';
 import Impuestos from './adminViews/Impuestos';
+import RegistroProducto from './adminViews/RegistroProducto';
 
 
 // Mapeo de IDs de menú a componentes para renderizado dinámico
@@ -48,6 +49,7 @@ const VIEW_COMPONENTS: Record<string, React.FC<any>> = {
   facturas: Facturas,
   historial_facturas: HistorialFacturas,
   inventario_productos: InventarioTable,
+  registro_producto: RegistroProducto,
   precios_productos: Precios,
   precios_historico: PreciosHistorico,
   stock: Stock,
