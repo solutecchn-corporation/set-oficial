@@ -101,27 +101,37 @@ export default function PanelAdmin({ onLogout }: { onLogout: () => void }) {
 
   const currentTitle = getTitleForView(currentViewId);
 
-  // Lógica del menú
+  // Lógica del menú (comportamiento acordeón: solo un submenú abierto)
   const handleMenuClick = (mi: typeof menuItems[0]) => {
     if (mi.id === 'salir') return onLogout();
     if (mi.children && mi.children.length > 0) {
-      // Toggle de expansión para menús con hijos
-      setExpandedMenus(s => ({ ...s, [mi.id]: !s[mi.id] }));
-      // Opcional: Si el padre es clickeable, navegar al primer hijo por defecto
-      if (mi.id !== active || !subActive) {
+      // Mantener solo un submenú abierto: cerrar los demás
+      setExpandedMenus(s => {
+        const isOpen = !!s[mi.id];
+        return { [mi.id]: !isOpen } as Record<string, boolean>;
+      });
+
+      // Si abrimos el menú, navegar al primer hijo por defecto
+      if (!expandedMenus[mi.id]) {
         setActive(mi.id);
         setSubActive(mi.children[0].id);
+      } else {
+        // Si se cierra el menú, mantener active en el padre sin subActive
+        setActive(mi.id);
+        setSubActive(null);
       }
     } else {
       // Navegación directa para menús sin hijos
       setActive(mi.id);
       setSubActive(null);
+      // cerrar todos los submenús al navegar a una vista directa
+      setExpandedMenus({});
     }
   };
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
-      <aside style={{ width: 260, background: '#0f1724', color: 'white', padding: 18, boxShadow: '2px 0 6px rgba(2,6,23,0.08)' }}>
+      <aside style={{ width: 300, minWidth: 220, maxWidth: 380, background: '#0f1724', color: 'white', padding: 20, boxShadow: '2px 0 6px rgba(2,6,23,0.08)', transition: 'width 180ms ease' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
           <strong>Panel Admin</strong>
           <button onClick={onLogout} className="btn-opaque" style={{ background: '#ef4444', padding: '6px 8px' }}>Salir</button>
