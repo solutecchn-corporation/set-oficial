@@ -72,6 +72,23 @@ export default function RepVentas() {
         let isv18 = 0;
         let isv4 = 0;
 
+        // Prefer persisted values from `ventas` row when available (fields may be named with snake_case or camelCase)
+        const hasPersistedSub = v.sub_exonerado != null || v.subExonerado != null || v.sub_exento != null || v.subExento != null || v.sub_gravado != null || v.subGravado != null;
+        const hasPersistedIsv = v.isv_15 != null || v.isv15 != null || v.isv_18 != null || v.isv18 != null || v.isv_4 != null || v.isv4 != null;
+        if (hasPersistedSub || hasPersistedIsv) {
+          subExonerado = Number(v.sub_exonerado ?? v.subExonerado ?? 0);
+          subExento = Number(v.sub_exento ?? v.subExento ?? 0);
+          subGravado = Number(v.sub_gravado ?? v.subGravado ?? 0);
+          // ISV persisted
+          isv15 = Number(v.isv_15 ?? v.isv15 ?? 0);
+          isv18 = Number(v.isv_18 ?? v.isv18 ?? 0);
+          isv4 = Number(v.isv_4 ?? v.isv4 ?? 0);
+          // if the DB stored subTuristico use it, otherwise attempt to compute below (subTuristico may be absent)
+          subTuristico = Number(v.sub_turistico ?? v.subTuristico ?? 0);
+        } else {
+          // compute from details below
+        }
+
         const tryParseProducto = (val: any) => {
           if (!val) return null;
           if (typeof val === 'object') return val;
@@ -91,6 +108,11 @@ export default function RepVentas() {
         };
 
         for (const d of dets) {
+          // if we already used persisted subtotals/isv, skip per-line recompute
+          if (hasPersistedSub || hasPersistedIsv) {
+            // still collect products and cantidad but skip tax calculations
+            continue;
+          }
           const cantidad = Number(d.cantidad || 0);
           const precio = Number(d.precio_unitario ?? d.precio ?? 0);
           const lineGross = d.subtotal != null ? Number(d.subtotal) : Number(cantidad * precio);

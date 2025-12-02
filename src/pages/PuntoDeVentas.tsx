@@ -1015,6 +1015,10 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
       isv_15: Number(isvTotal || 0),
       isv_18: Number(imp18Total || 0),
       isv_4: Number(impTouristTotal || 0),
+      // subtotal por tipo
+      sub_exonerado: 0,
+      sub_exento: 0,
+      sub_gravado: 0,
       total: Number(total || 0),
       estado: "pagada",
       cambio: String(Number(cambioVal).toFixed(2)),
@@ -1035,6 +1039,33 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
       fecha_limite_emision:
         usedCai?.fecha_vencimiento ?? usedCai?.fecha_limite_emision ?? null,
     };
+
+    // compute sub_exonerado/sub_exento/sub_gravado from carrito
+    try {
+      let se = 0;
+      let sx = 0;
+      let sg = 0;
+      // if cliente is marked exonerado, all taxable amounts are exonerado
+      const clienteIsExonerado = Boolean(clienteExonerado);
+      for (const it of carrito) {
+        const price = Number(it.producto.precio || 0);
+        const qty = Number(it.cantidad || 0);
+        const lineGross = price * qty;
+        const prodExento = Boolean((it.producto as any).exento);
+        if (clienteIsExonerado) {
+          se += lineGross;
+        } else if (prodExento) {
+          sx += lineGross;
+        } else {
+          sg += lineGross;
+        }
+      }
+      ventaPayload.sub_exonerado = Number(se || 0);
+      ventaPayload.sub_exento = Number(sx || 0);
+      ventaPayload.sub_gravado = Number(sg || 0);
+    } catch (e) {
+      console.debug('Error computing sub_* for ventaPayload', e);
+    }
 
     // Try inserting venta; if server reports missing columns (PGRST204 / Could not find...), retry without CAI-related fields
     let ventaInsRaw: any = null;
@@ -1074,6 +1105,10 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
         delete minimalPayload.isv_15;
         delete minimalPayload.isv_18;
         delete minimalPayload.isv_4;
+        // remove subtotal-by-type columns if DB does not have them
+        delete minimalPayload.sub_exonerado;
+        delete minimalPayload.sub_exento;
+        delete minimalPayload.sub_gravado;
         try {
           const res2 = await supabase
             .from("ventas")
@@ -1177,6 +1212,9 @@ export default function PuntoDeVentas({ onLogout }: { onLogout: () => void }) {
             p_isv_15: Number(isvTotal || 0),
             p_isv_18: Number(imp18Total || 0),
             p_isv_4: Number(impTouristTotal || 0),
+            p_sub_exonerado: Number(ventaPayload.sub_exonerado || 0),
+            p_sub_exento: Number(ventaPayload.sub_exento || 0),
+            p_sub_gravado: Number(ventaPayload.sub_gravado || 0),
             p_total: Number(total || 0),
             p_cambio: String(Number(cambioVal).toFixed(2)),
             p_detalles: rpcDetalles,
